@@ -1,0 +1,243 @@
+#! /bin/bash -x
+
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+
+#
+# Copyright 2019 Joyent, Inc.
+#
+
+# This is an initial crude hack that generates a debian live image that includes
+# zfs.
+
+export PATH=/bin:/usr/bin:/usr/sbin
+
+set -euo pipefail
+
+debver=buster
+release=$(TZ=UTC date +%Y%m%dT%H%M%SZ)
+dataset=data/debian-live-$release
+root=/$dataset/chroot
+image=/$dataset/image
+scratch=/$dataset/scratch
+
+zfs_tag=zfs-0.8.2
+
+# From https://willhaley.com/blog/custom-debian-live-environment/
+packages=(linux-image-amd64 live-boot systemd-sysv)
+packages+=(network-manager net-tools openssh-client)
+
+# I noticed these important things are missing
+packages+=(openssh-server vim curl git less ca-certificates)
+
+# From https://github.com/zfsonlinux/zfs/wiki/Debian#installation
+packages+=(dpkg-dev linux-headers-amd64 zfs-dkms zfsutils-linux)
+
+# From https://github.com/zfsonlinux/zfs/wiki/Building-ZFS
+#zfs_build_packages+=(build-essential autoconf automake libtool gawk alien \
+#    fakeroot dkms libblkid-dev uuid-dev libudev-dev libssl-dev zlib1g-dev \
+#    libaio-dev libattr1-dev libelf-dev linux-headers-amd64 python3 python3-dev \
+#    python3-setuptools python3-cffi libffi-dev)
+
+# For running zfstest
+#packages+=(ksh bc fio acl sysstat mdadm lsscsi parted attr dbench)
+#packages+=(nfs-kernel-server samba rng-tools pax linux-tools-common)
+#packages+=( selinux-utils quota)
+
+# Args added to 'apt install'
+apt_args=(-y)
+apt_args+=(--no-install-recommends)
+
+#
+# No more configuration
+#
+
+clean=()
+function cleanup {
+	local i=${#clean[@]}
+
+	while (( $i > 0 )); do
+		(( i-- ))
+		eval ${clean[i]}
+	done
+}
+trap cleanup EXIT
+
+clean_exit=false
+function onfatal {
+	if [[ $clean_exit == false ]]; then
+		echo "Cleaning up: $@" 1>&2
+		eval "$@"
+	fi
+}
+
+function unmount_children {
+	local dirs=($(mount | awk -v root=$root/ '
+	BEGIN {
+		if ( root == "/" || root == "" ) {
+			printf "cleanup: root is \"%s\"\n", root >/dev/fd/2
+			exit 1
+		}
+	}
+	$3 ~ root {
+		print $3
+	}' | sort -r))
+	for dir in "${dirs[@]}"; do
+		umount "$dir"
+	done
+}
+
+#
+# main
+#
+
+# Ensure we have all the commands that will be needed
+typeset -A cmds
+cmds["mcopy"]=mtools
+cmds["mksquashfs"]=squashfs-tools
+cmds["xorriso"]=xorriso
+cmds["efibootmgr"]=grub-efi
+cmds["mkfs.vfat"]=dosfstools
+
+missing=()
+for cmd in ${!cmds[@]}; do
+	if ! type -path "$cmd" >/dev/null 2>&1; then
+		echo "$0: missing command $cmd" 1>&2
+		missing+=(${cmds["$cmd"]})
+	fi
+done
+if (( ${#missing[@]} != 0 )); then
+	exec 1>&2
+	echo "$0: Missing ${#missing[@]} packages."
+	echo ""
+	echo "To fix, run:"
+	echo "    apt install -y ${missing[@]}"
+fi
+
+export DEBIAN_FRONTEND=noninteractive
+
+zfs create $dataset
+clean+=("onfatal zfs destroy $dataset")
+debootstrap --arch=amd64 --variant=minbase "$debver" "$root" \
+    http://ftp.us.debian.org/debian/
+
+echo debian-live-$release | chroot "$root" tee /etc/hostname >/dev/null
+
+clean+=(unmount_children)
+mount -t proc proc $root/proc
+# These may be required for zfs build, but leads to filesystems that can't be
+# unmounted.  Grumble.
+#mount --rbind /sys $root/sys
+#mount --make-rslave $root/sys
+#mount --rbind /dev $root/dev
+#mount --make-rslave $root/dev
+
+chroot "$root" tee /etc/apt/sources.list >/dev/null <<EOF
+deb http://deb.debian.org/debian/ buster main
+deb-src http://deb.debian.org/debian/ buster main
+
+deb http://security.debian.org/debian-security buster/updates main
+deb-src http://security.debian.org/debian-security buster/updates main
+
+deb http://deb.debian.org/debian/ buster-updates main
+deb-src http://deb.debian.org/debian/ buster-updates main
+EOF
+
+chroot "$root" tee /etc/apt/sources.list.d/buster-backports.list >/dev/null <<EOF
+# https://github.com/zfsonlinux/zfs/wiki/Debian#installation
+deb http://deb.debian.org/debian buster-backports main contrib
+deb-src http://deb.debian.org/debian buster-backports main contrib
+EOF
+
+chroot "$root" tee /etc/apt/preferences.d/90_zfs >/dev/null <<EOF
+# https://github.com/zfsonlinux/zfs/wiki/Debian#installation
+Package: libnvpair1linux libuutil1linux libzfs2linux libzpool2linux spl-dkms zfs-dkms zfs-test zfsutils-linux zfsutils-linux-dev zfs-zed
+Pin: release n=buster-backports
+Pin-Priority: 990
+EOF
+
+chroot "$root" apt update
+chroot "$root" env DEBIAN_FRONTEND=noninteractive \
+    apt install "${apt_args[@]}" "${packages[@]}"
+
+umount $root/proc
+chroot "$root" apt-get clean
+chroot "$root" passwd -d root
+chroot "$root" rm /etc/machine-id
+chroot "$root" find /etc/ssh -name 'ssh_host_*key*' -exec rm -f '{}' ';'
+rm -f "$root"/*.old
+
+mkdir -p $scratch $image/live
+mksquashfs $root $image/live/filesystem.squashfs -e boot
+cp $root/boot/vmlinuz-* $image/vmlinuz
+cp $root/boot/initrd.img-* $image/initrd
+
+cat <<EOF >$scratch/grub.cfg
+search --set=root --file /JOYENT_DEBIAN_LIVE
+
+insmod all_video
+
+set default="0"
+set timeout=30
+
+menuentry "Joyent Debian Live $release" {
+    linux /vmlinuz boot=live quiet nomodeset
+    initrd /initrd
+}
+EOF
+echo $release > $image/JOYENT_DEBIAN_LIVE
+
+grub-mkstandalone \
+    --format=x86_64-efi \
+    --output=$scratch/bootx64.efi \
+    --locales="" \
+    --fonts="" \
+    "boot/grub/grub.cfg=$scratch/grub.cfg"
+
+grub-mkstandalone \
+    --format=i386-pc \
+    --output=$scratch/core.img \
+    --install-modules="linux normal iso9660 biosdisk memdisk search tar ls" \
+    --modules="linux normal iso9660 biosdisk search" \
+    --locales="" \
+    --fonts="" \
+    "boot/grub/grub.cfg=$scratch/grub.cfg"
+
+# mcopy, mmd from mtools - Not Manta!
+(cd $scratch && \
+    dd if=/dev/zero of=efiboot.img bs=1M count=10 && \
+    mkfs.vfat efiboot.img && \
+    mmd -i efiboot.img efi efi/boot && \
+    mcopy -i efiboot.img ./bootx64.efi ::efi/boot/
+)
+
+cat /usr/lib/grub/i386-pc/cdboot.img $scratch/core.img > $scratch/bios.img
+
+xorriso \
+    -as mkisofs \
+    -iso-level 3 \
+    -full-iso9660-filenames \
+    -volid "JOYENT_DEBIAN_CUSTOM" \
+    -eltorito-boot \
+        boot/grub/bios.img \
+        -no-emul-boot \
+        -boot-load-size 4 \
+        -boot-info-table \
+        --eltorito-catalog boot/grub/boot.cat \
+    --grub2-boot-info \
+    --grub2-mbr /usr/lib/grub/i386-pc/boot_hybrid.img \
+    -eltorito-alt-boot \
+        -e EFI/efiboot.img \
+        -no-emul-boot \
+    -append_partition 2 0xef $scratch/efiboot.img \
+    -output "/$dataset/joyent-debian_live-$release.iso" \
+    -graft-points \
+        "$image" \
+        /boot/grub/bios.img=$scratch/bios.img \
+        /EFI/efiboot.img=$scratch/efiboot.img
+
+
+clean_exit=true
