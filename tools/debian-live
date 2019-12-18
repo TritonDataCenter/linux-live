@@ -10,20 +10,32 @@
 # Copyright 2019 Joyent, Inc.
 #
 
+#
 # This is an initial crude hack that generates a debian live image that includes
-# zfs.
+# zfs.  Thanks to https://willhaley.com/blog/custom-debian-live-environment/ for
+# making this problem easily approachable.
+#
+# WARNING:   This script generates an image that taints the kernel with CDDL
+#	     licensed zfs modules.  Many believe that distribution of the binary
+#	     zfs modules infringe on the GPLv2 licensed Linux code.
+#	     Distribution of images generated with this script is highly
+#	     discouraged.
+#
 
 export PATH=/bin:/usr/bin:/usr/sbin
 
 set -euo pipefail
 
 debver=buster
+name="Debian 10"
+docurl=https://github.com/joyent/linux-live
 release=$(TZ=UTC date +%Y%m%dT%H%M%SZ)
 dataset=data/debian-live-$release
 root=/$dataset/chroot
 image=/$dataset/image
 scratch=/$dataset/scratch
 
+ntp=0.debian.pool.ntp.org
 zfs_tag=zfs-0.8.2
 
 # From https://willhaley.com/blog/custom-debian-live-environment/
@@ -31,25 +43,31 @@ packages=(linux-image-amd64 live-boot systemd-sysv)
 packages+=(network-manager net-tools openssh-client)
 
 # I noticed these important things are missing
-packages+=(openssh-server vim curl git less ca-certificates)
+packages+=(openssh-server vim curl git less ca-certificates iproute2 man
+   dnsutils iputils-ping dstat sysstat)
 
 # From https://github.com/zfsonlinux/zfs/wiki/Debian#installation
 packages+=(dpkg-dev linux-headers-amd64 zfs-dkms zfsutils-linux)
 
-# From https://github.com/zfsonlinux/zfs/wiki/Building-ZFS
-#zfs_build_packages+=(build-essential autoconf automake libtool gawk alien \
-#    fakeroot dkms libblkid-dev uuid-dev libudev-dev libssl-dev zlib1g-dev \
-#    libaio-dev libattr1-dev libelf-dev linux-headers-amd64 python3 python3-dev \
-#    python3-setuptools python3-cffi libffi-dev)
-
-# For running zfstest
-#packages+=(ksh bc fio acl sysstat mdadm lsscsi parted attr dbench)
-#packages+=(nfs-kernel-server samba rng-tools pax linux-tools-common)
-#packages+=( selinux-utils quota)
-
 # Args added to 'apt install'
 apt_args=(-y)
 apt_args+=(--no-install-recommends)
+
+motd=$'
+   __        .                   .
+ _|  |_      | .-. .  . .-. :--. |-
+|_    _|     ;|   ||  |(.-\' |  | |
+  |__|   `--\'  `-\' `;-| `-\' \'  \' `-\'
+                   /  ;  Platform ('"$name"' '"$release"$')
+                   `-\'   '"$docurl"'
+'
+
+product="
+Name: Joyent Platform Image
+Image: $name $release
+Documentation: https://github.com/joyent/linux-live/
+Description: $name with zfs $zfs_tag.  THIS IMAGE IS NOT REDISTRIBUTABLE with the zfs kernel modules.
+"
 
 #
 # No more configuration
@@ -128,28 +146,22 @@ echo debian-live-$release | chroot "$root" tee /etc/hostname >/dev/null
 
 clean+=(unmount_children)
 mount -t proc proc $root/proc
-# These may be required for zfs build, but leads to filesystems that can't be
-# unmounted.  Grumble.
-#mount --rbind /sys $root/sys
-#mount --make-rslave $root/sys
-#mount --rbind /dev $root/dev
-#mount --make-rslave $root/dev
 
 chroot "$root" tee /etc/apt/sources.list >/dev/null <<EOF
-deb http://deb.debian.org/debian/ buster main
-deb-src http://deb.debian.org/debian/ buster main
+deb http://deb.debian.org/debian/ $debver main
+deb-src http://deb.debian.org/debian/ $debver main
 
-deb http://security.debian.org/debian-security buster/updates main
-deb-src http://security.debian.org/debian-security buster/updates main
+deb http://security.debian.org/debian-security $debver/updates main
+deb-src http://security.debian.org/debian-security $debver/updates main
 
-deb http://deb.debian.org/debian/ buster-updates main
-deb-src http://deb.debian.org/debian/ buster-updates main
+deb http://deb.debian.org/debian/ $debver-updates main
+deb-src http://deb.debian.org/debian/ $debver-updates main
 EOF
 
-chroot "$root" tee /etc/apt/sources.list.d/buster-backports.list >/dev/null <<EOF
+chroot "$root" tee /etc/apt/sources.list.d/$debver-backports.list >/dev/null <<EOF
 # https://github.com/zfsonlinux/zfs/wiki/Debian#installation
-deb http://deb.debian.org/debian buster-backports main contrib
-deb-src http://deb.debian.org/debian buster-backports main contrib
+deb http://deb.debian.org/debian $debver-backports main contrib
+deb-src http://deb.debian.org/debian $debver-backports main contrib
 EOF
 
 chroot "$root" tee /etc/apt/preferences.d/90_zfs >/dev/null <<EOF
@@ -164,11 +176,36 @@ chroot "$root" env DEBIAN_FRONTEND=noninteractive \
     apt install "${apt_args[@]}" "${packages[@]}"
 
 umount $root/proc
-chroot "$root" apt-get clean
-chroot "$root" passwd -d root
-chroot "$root" rm /etc/machine-id
-chroot "$root" find /etc/ssh -name 'ssh_host_*key*' -exec rm -f '{}' ';'
-rm -f "$root"/*.old
+
+# Heavily inspired by mi-debian-hvm/debian-10/late-command
+chroot "$root" env motd="$motd" product="$product" \
+    bash -c '
+	PS4="POSTINSTALL: "
+	set -xeuo pipefail
+
+	apt-get -y autoremove
+	apt-get -y clean
+	rm -rf /var/lib/apt/lists/*
+	rm -rf /var/cache/*
+	rm -f /etc/machine-id /etc/hostid
+
+	passwd -d root
+
+	# For crazy quoting reasons we rely on $motd and $product from env
+	echo "$motd" >/etc/motd
+	ln -sf /etc/motd /etc/issue
+	ln -sf /etc/motd /etc/issue.net
+
+	echo "$product" >/etc/product
+
+	find /etc/ssh -name "ssh_host_*key*" -exec rm -f "{}" ";"
+	rm -f /*.old
+	echo "LC_ALL=C" > /etc/default/locale
+
+	# otherwise timesyncd tries ipv6 servers for the first 90 seconds or so.
+	sed -i "s/^#NTP=.*/NTP='$ntp'/" /etc/systemd/timesyncd.conf
+' # End of postinstall
+
 
 mkdir -p $scratch $image/live
 mksquashfs $root $image/live/filesystem.squashfs -e boot
@@ -220,9 +257,8 @@ xorriso \
     -as mkisofs \
     -iso-level 3 \
     -full-iso9660-filenames \
-    -volid "JOYENT_DEBIAN_CUSTOM" \
-    -eltorito-boot \
-        boot/grub/bios.img \
+    -volid "JOYENT_DEBIAN_LIVE" \
+    -eltorito-boot boot/grub/bios.img \
         -no-emul-boot \
         -boot-load-size 4 \
         -boot-info-table \
@@ -239,5 +275,5 @@ xorriso \
         /boot/grub/bios.img=$scratch/bios.img \
         /EFI/efiboot.img=$scratch/efiboot.img
 
-
 clean_exit=true
+set +x
