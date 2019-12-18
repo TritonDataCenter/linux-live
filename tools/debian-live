@@ -36,18 +36,23 @@ image=/$dataset/image
 scratch=/$dataset/scratch
 
 ntp=0.debian.pool.ntp.org
-zfs_tag=zfs-0.8.2
+zfs_ver=0.8.2
 
 # From https://willhaley.com/blog/custom-debian-live-environment/
 packages=(linux-image-amd64 live-boot systemd-sysv)
 packages+=(network-manager net-tools openssh-client)
 
 # I noticed these important things are missing
-packages+=(openssh-server vim curl git less ca-certificates iproute2 man
+packages+=(openssh-server vim curl less ca-certificates iproute2 man
    dnsutils iputils-ping dstat sysstat)
 
-# From https://github.com/zfsonlinux/zfs/wiki/Debian#installation
-packages+=(dpkg-dev linux-headers-amd64 zfs-dkms zfsutils-linux)
+# ZFS userspace - these are redistributable
+packages+=("zfsutils-linux=$zfs_ver*")
+
+# ZFS kernel modules and other stuff required to build a non-dkms deb
+zfs_build_packages+=(dpkg-dev "zfs-dkms=$zfs_ver*" linux-headers-amd64 \
+    fakeroot debhelper)
+
 
 # Args added to 'apt install'
 apt_args=(-y)
@@ -66,7 +71,7 @@ product="
 Name: Joyent Platform Image
 Image: $name $release
 Documentation: https://github.com/joyent/linux-live/
-Description: $name with zfs $zfs_tag.  THIS IMAGE IS NOT REDISTRIBUTABLE with the zfs kernel modules.
+Description: $name with zfs $zfs_ver.  THIS IMAGE IS NOT REDISTRIBUTABLE with the zfs kernel modules.
 "
 
 #
@@ -135,8 +140,6 @@ if (( ${#missing[@]} != 0 )); then
 	echo "    apt install -y ${missing[@]}"
 fi
 
-export DEBIAN_FRONTEND=noninteractive
-
 zfs create $dataset
 clean+=("onfatal zfs destroy $dataset")
 debootstrap --arch=amd64 --variant=minbase "$debver" "$root" \
@@ -173,7 +176,28 @@ EOF
 
 chroot "$root" apt update
 chroot "$root" env DEBIAN_FRONTEND=noninteractive \
-    apt install "${apt_args[@]}" "${packages[@]}"
+    apt install "${apt_args[@]}" "${packages[@]}" "${zfs_build_packages[@]}"
+
+# In the previous "apt install" we built the zfs kernel modules, which brought
+# in over 100 MiB of development tools.  Now, generate a binary deb containing
+# the zfs kernel modules built from zfs-dkms, uninstall all the development
+# stuff, and install the non-dkms binary zfs module.
+chroot "$root" env zfs_ver="$zfs_ver" pkgs="${zfs_build_packages[*]}" \
+    bash -c '
+	PS4="CLEAN_ZFS_DEV: "
+	set -xeuo pipefail
+
+	export DEBIAN_FRONTEND=noninteractive
+	export LC_ALL=C
+
+	dkms mkbmdeb -m zfs -v "$zfs_ver"
+	mv /var/lib/dkms/zfs/$zfs_ver/bmdeb/zfs-modules-*.deb /tmp
+	apt remove -y $pkgs "kernel-headers-*"
+	apt autoremove -y
+
+	dpkg -i /tmp/zfs-modules-*.deb
+	rm -f /tmp/zfs-modules-*.deb
+'
 
 umount $root/proc
 
