@@ -1,4 +1,4 @@
-#! /bin/bash -x
+#! /bin/bash
 
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
@@ -24,16 +24,12 @@
 
 export PATH=/bin:/usr/bin:/usr/sbin
 
+PS4='${FUNCNAME:-debian-live}: '
 set -euo pipefail
 
 debver=buster
 name="Debian 10"
 docurl=https://github.com/joyent/linux-live
-release=$(TZ=UTC date +%Y%m%dT%H%M%SZ)
-dataset=data/debian-live-$release
-root=/$dataset/chroot
-image=/$dataset/image
-scratch=/$dataset/scratch
 
 ntp=0.debian.pool.ntp.org
 zfs_ver=0.8.2
@@ -53,26 +49,9 @@ packages+=("zfsutils-linux=$zfs_ver*")
 zfs_build_packages+=(dpkg-dev "zfs-dkms=$zfs_ver*" linux-headers-amd64 \
     fakeroot debhelper)
 
-
 # Args added to 'apt install'
 apt_args=(-y)
 apt_args+=(--no-install-recommends)
-
-motd=$'
-   __        .                   .
- _|  |_      | .-. .  . .-. :--. |-
-|_    _|     ;|   ||  |(.-\' |  | |
-  |__|   `--\'  `-\' `;-| `-\' \'  \' `-\'
-                   /  ;  Platform ('"$name"' '"$release"$')
-                   `-\'   '"$docurl"'
-'
-
-product="
-Name: Joyent Platform Image
-Image: $name $release
-Documentation: https://github.com/joyent/linux-live/
-Description: $name with zfs $zfs_ver.  THIS IMAGE IS NOT REDISTRIBUTABLE with the zfs kernel modules.
-"
 
 #
 # No more configuration
@@ -113,130 +92,140 @@ function unmount_children {
 	done
 }
 
-#
-# main
-#
-
 # Ensure we have all the commands that will be needed
-typeset -A cmds
-cmds["mcopy"]=mtools
-cmds["mksquashfs"]=squashfs-tools
-cmds["xorriso"]=xorriso
-cmds["efibootmgr"]=grub-efi
-cmds["mkfs.vfat"]=dosfstools
+function preflight_check {
+	local cmds
+	typeset -A cmds
+	cmds["mcopy"]=mtools
+	cmds["mksquashfs"]=squashfs-tools
+	cmds["xorriso"]=xorriso
+	cmds["efibootmgr"]=grub-efi
+	cmds["mkfs.vfat"]=dosfstools
+	cmds["pigz"]=pigz
+	cmds["kpartx"]=kpartx
 
-missing=()
-for cmd in ${!cmds[@]}; do
-	if ! type -path "$cmd" >/dev/null 2>&1; then
-		echo "$0: missing command $cmd" 1>&2
-		missing+=(${cmds["$cmd"]})
+	missing=()
+	for cmd in ${!cmds[@]}; do
+		if ! type -path "$cmd" >/dev/null 2>&1; then
+			echo "$0: missing command $cmd" 1>&2
+			missing+=(${cmds["$cmd"]})
+		fi
+	done
+	if (( ${#missing[@]} != 0 )); then
+		exec 1>&2
+		echo "$0: Missing ${#missing[@]} packages."
+		echo ""
+		echo "To fix, run:"
+		echo "    apt install -y ${missing[@]}"
+		exit 1
 	fi
-done
-if (( ${#missing[@]} != 0 )); then
-	exec 1>&2
-	echo "$0: Missing ${#missing[@]} packages."
-	echo ""
-	echo "To fix, run:"
-	echo "    apt install -y ${missing[@]}"
-fi
+}
 
-zfs create $dataset
-clean+=("onfatal zfs destroy $dataset")
-debootstrap --arch=amd64 --variant=minbase "$debver" "$root" \
-    http://ftp.us.debian.org/debian/
+function create_bootstrap {
+	zfs create $dataset
+	#clean+=("onfatal zfs destroy $dataset")
+	debootstrap --arch=amd64 --variant=minbase "$debver" "$root" \
+	    http://ftp.us.debian.org/debian/
+}
 
-echo debian-live-$release | chroot "$root" tee /etc/hostname >/dev/null
+function install_live {
+	clean+=(unmount_children)
+	mount -t proc proc $root/proc
 
-clean+=(unmount_children)
-mount -t proc proc $root/proc
+	chroot "$root" tee /etc/apt/sources.list >/dev/null <<-EOF
+	deb http://deb.debian.org/debian/ $debver main
+	deb-src http://deb.debian.org/debian/ $debver main
 
-chroot "$root" tee /etc/apt/sources.list >/dev/null <<EOF
-deb http://deb.debian.org/debian/ $debver main
-deb-src http://deb.debian.org/debian/ $debver main
+	deb http://security.debian.org/debian-security $debver/updates main
+	deb-src http://security.debian.org/debian-security $debver/updates main
 
-deb http://security.debian.org/debian-security $debver/updates main
-deb-src http://security.debian.org/debian-security $debver/updates main
+	deb http://deb.debian.org/debian/ $debver-updates main
+	deb-src http://deb.debian.org/debian/ $debver-updates main
+	EOF
 
-deb http://deb.debian.org/debian/ $debver-updates main
-deb-src http://deb.debian.org/debian/ $debver-updates main
-EOF
+	chroot "$root" tee /etc/apt/sources.list.d/$debver-backports.list \
+	    >/dev/null <<-EOF
+	# https://github.com/zfsonlinux/zfs/wiki/Debian#installation
+	deb http://deb.debian.org/debian $debver-backports main contrib
+	deb-src http://deb.debian.org/debian $debver-backports main contrib
+	EOF
 
-chroot "$root" tee /etc/apt/sources.list.d/$debver-backports.list >/dev/null <<EOF
-# https://github.com/zfsonlinux/zfs/wiki/Debian#installation
-deb http://deb.debian.org/debian $debver-backports main contrib
-deb-src http://deb.debian.org/debian $debver-backports main contrib
-EOF
+	chroot "$root" tee /etc/apt/preferences.d/90_zfs >/dev/null <<-EOF
+	# https://github.com/zfsonlinux/zfs/wiki/Debian#installation
+	Package: libnvpair1linux libuutil1linux libzfs2linux libzpool2linux spl-dkms zfs-dkms zfs-test zfsutils-linux zfsutils-linux-dev zfs-zed
+	Pin: release n=buster-backports
+	Pin-Priority: 990
+	EOF
 
-chroot "$root" tee /etc/apt/preferences.d/90_zfs >/dev/null <<EOF
-# https://github.com/zfsonlinux/zfs/wiki/Debian#installation
-Package: libnvpair1linux libuutil1linux libzfs2linux libzpool2linux spl-dkms zfs-dkms zfs-test zfsutils-linux zfsutils-linux-dev zfs-zed
-Pin: release n=buster-backports
-Pin-Priority: 990
-EOF
-
-chroot "$root" apt update
-chroot "$root" env DEBIAN_FRONTEND=noninteractive \
-    apt install "${apt_args[@]}" "${packages[@]}" "${zfs_build_packages[@]}"
+	chroot "$root" apt update
+	chroot "$root" env DEBIAN_FRONTEND=noninteractive apt install \
+	    "${apt_args[@]}" "${packages[@]}" "${zfs_build_packages[@]}"
+}
 
 # In the previous "apt install" we built the zfs kernel modules, which brought
 # in over 100 MiB of development tools.  Now, generate a binary deb containing
 # the zfs kernel modules built from zfs-dkms, uninstall all the development
 # stuff, and install the non-dkms binary zfs module.
-chroot "$root" env zfs_ver="$zfs_ver" pkgs="${zfs_build_packages[*]}" \
-    bash -c '
-	PS4="CLEAN_ZFS_DEV: "
-	set -xeuo pipefail
+function reduce_zfs {
+	chroot "$root" env zfs_ver="$zfs_ver" pkgs="${zfs_build_packages[*]}" \
+	    bash -c '
+		PS4="CLEAN_ZFS_DEV: "
+		set -xeuo pipefail
 
-	export DEBIAN_FRONTEND=noninteractive
-	export LC_ALL=C
+		export DEBIAN_FRONTEND=noninteractive
+		export LC_ALL=C
 
-	dkms mkbmdeb -m zfs -v "$zfs_ver"
-	mv /var/lib/dkms/zfs/$zfs_ver/bmdeb/zfs-modules-*.deb /tmp
-	apt remove -y $pkgs "kernel-headers-*"
-	apt autoremove -y
+		dkms mkbmdeb -m zfs -v "$zfs_ver"
+		mv /var/lib/dkms/zfs/$zfs_ver/bmdeb/zfs-modules-*.deb /tmp
+		apt remove -y $pkgs "kernel-headers-*"
+		apt autoremove -y
 
-	dpkg -i /tmp/zfs-modules-*.deb
-	rm -f /tmp/zfs-modules-*.deb
-'
+		dpkg -i /tmp/zfs-modules-*.deb
+		rm -f /tmp/zfs-modules-*.deb
+	'
 
-umount $root/proc
+	umount $root/proc
+}
 
-# Heavily inspired by mi-debian-hvm/debian-10/late-command
-chroot "$root" env motd="$motd" product="$product" \
-    bash -c '
-	PS4="POSTINSTALL: "
-	set -xeuo pipefail
+function postinstall {
+	# Heavily inspired by mi-debian-hvm/debian-10/late-command
+	chroot "$root" env release="$release" motd="$motd" product="$product" \
+	    bash -c '
+		PS4="POSTINSTALL: "
+		set -xeuo pipefail
 
-	apt-get -y autoremove
-	apt-get -y clean
-	rm -rf /var/lib/apt/lists/*
-	rm -rf /var/cache/*
-	rm -f /etc/machine-id /etc/hostid
+		echo debian-live-$release >/etc/hostname
+		apt-get -y autoremove
+		apt-get -y clean
+		rm -rf /var/lib/apt/lists/*
+		rm -rf /var/cache/*
+		rm -f /etc/machine-id /etc/hostid
 
-	passwd -d root
+		passwd -d root
 
-	# For crazy quoting reasons we rely on $motd and $product from env
-	echo "$motd" >/etc/motd
-	ln -sf /etc/motd /etc/issue
-	ln -sf /etc/motd /etc/issue.net
+		# For crazy quoting reasons we rely on $motd and $product from env
+		echo "$motd" >/etc/motd
+		ln -sf /etc/motd /etc/issue
+		ln -sf /etc/motd /etc/issue.net
 
-	echo "$product" >/etc/product
+		echo "$product" >/etc/product
 
-	find /etc/ssh -name "ssh_host_*key*" -exec rm -f "{}" ";"
-	rm -f /*.old
-	echo "LC_ALL=C" > /etc/default/locale
+		find /etc/ssh -name "ssh_host_*key*" -exec rm -f "{}" ";"
+		rm -f /*.old
+		echo "LC_ALL=C" > /etc/default/locale
 
-	# otherwise timesyncd tries ipv6 servers for the first 90 seconds or so.
-	sed -i "s/^#NTP=.*/NTP='$ntp'/" /etc/systemd/timesyncd.conf
-' # End of postinstall
+		# otherwise timesyncd tries ipv6 servers for the first 90 seconds or so.
+		sed -i "s/^#NTP=.*/NTP='$ntp'/" /etc/systemd/timesyncd.conf
+	'
+}
 
+function prepare_archive_bits {
+	mkdir -p $scratch $image/live
+	mksquashfs $root $image/live/filesystem.squashfs -e boot
+	cp $root/boot/vmlinuz-* $image/vmlinuz
+	cp $root/boot/initrd.img-* $image/initrd
 
-mkdir -p $scratch $image/live
-mksquashfs $root $image/live/filesystem.squashfs -e boot
-cp $root/boot/vmlinuz-* $image/vmlinuz
-cp $root/boot/initrd.img-* $image/initrd
-
-cat <<EOF >$scratch/grub.cfg
+	cat <<EOF >$scratch/grub.cfg
 search --set=root --file /JOYENT_DEBIAN_LIVE
 
 insmod all_video
@@ -249,55 +238,203 @@ menuentry "Joyent Debian Live $release" {
     initrd /initrd
 }
 EOF
-echo $release > $image/JOYENT_DEBIAN_LIVE
+	echo $release > $image/JOYENT_DEBIAN_LIVE
+}
 
-grub-mkstandalone \
-    --format=x86_64-efi \
-    --output=$scratch/bootx64.efi \
-    --locales="" \
-    --fonts="" \
-    "boot/grub/grub.cfg=$scratch/grub.cfg"
+function create_iso {
+	grub-mkstandalone --format=x86_64-efi --output=$scratch/bootx64.efi \
+	    --locales="" --fonts="" "boot/grub/grub.cfg=$scratch/grub.cfg"
 
-grub-mkstandalone \
-    --format=i386-pc \
-    --output=$scratch/core.img \
-    --install-modules="linux normal iso9660 biosdisk memdisk search tar ls" \
-    --modules="linux normal iso9660 biosdisk search" \
-    --locales="" \
-    --fonts="" \
-    "boot/grub/grub.cfg=$scratch/grub.cfg"
+	grub-mkstandalone --format=i386-pc --output=$scratch/core.img \
+	    --install-modules="linux normal iso9660 biosdisk memdisk search tar ls" \
+	    --modules="linux normal iso9660 biosdisk search" --locales="" \
+	    --fonts="" "boot/grub/grub.cfg=$scratch/grub.cfg"
 
-# mcopy, mmd from mtools - Not Manta!
-(cd $scratch && \
-    dd if=/dev/zero of=efiboot.img bs=1M count=10 && \
-    mkfs.vfat efiboot.img && \
-    mmd -i efiboot.img efi efi/boot && \
-    mcopy -i efiboot.img ./bootx64.efi ::efi/boot/
-)
+	# mcopy, mmd from mtools - Not Manta!
+	(cd $scratch && \
+	    dd if=/dev/zero of=efiboot.img bs=1M count=10 && \
+	    mkfs.vfat efiboot.img && \
+	    mmd -i efiboot.img efi efi/boot && \
+	    mcopy -i efiboot.img ./bootx64.efi ::efi/boot/
+	)
 
-cat /usr/lib/grub/i386-pc/cdboot.img $scratch/core.img > $scratch/bios.img
+	cat /usr/lib/grub/i386-pc/cdboot.img $scratch/core.img > \
+	    $scratch/bios.img
 
-xorriso \
-    -as mkisofs \
-    -iso-level 3 \
-    -full-iso9660-filenames \
-    -volid "JOYENT_DEBIAN_LIVE" \
-    -eltorito-boot boot/grub/bios.img \
-        -no-emul-boot \
-        -boot-load-size 4 \
-        -boot-info-table \
-        --eltorito-catalog boot/grub/boot.cat \
-    --grub2-boot-info \
-    --grub2-mbr /usr/lib/grub/i386-pc/boot_hybrid.img \
-    -eltorito-alt-boot \
-        -e EFI/efiboot.img \
-        -no-emul-boot \
-    -append_partition 2 0xef $scratch/efiboot.img \
-    -output "/$dataset/joyent-debian_live-$release.iso" \
-    -graft-points \
-        "$image" \
-        /boot/grub/bios.img=$scratch/bios.img \
-        /EFI/efiboot.img=$scratch/efiboot.img
+	xorriso -as mkisofs -iso-level 3 -full-iso9660-filenames \
+	    -volid "JOYENT_DEBIAN_LIVE" -eltorito-boot boot/grub/bios.img \
+	    -no-emul-boot -boot-load-size 4 -boot-info-table \
+	    --eltorito-catalog boot/grub/boot.cat --grub2-boot-info \
+	    --grub2-mbr /usr/lib/grub/i386-pc/boot_hybrid.img \
+	    -eltorito-alt-boot -e EFI/efiboot.img -no-emul-boot \
+	    -append_partition 2 0xef $scratch/efiboot.img \
+	    -output "$top/joyent-debian_live-$release.iso" \
+	    -graft-points "$image" /boot/grub/bios.img=$scratch/bios.img \
+	    /EFI/efiboot.img=$scratch/efiboot.img
+}
+
+# Creates a USB disk that should be bootable with bios or uefi. The parition
+# containing the image is over sized by about 20% for metadata and a bit of
+# breathing room.  Those that want to store more stuff on it can grow the
+# partition and file system to use the available space.
+function create_usb {
+	local skip_sec=2048
+	local bios_start=$skip_sec
+	local bios_sec=2048
+	local bios_end=$(( bios_start + bios_sec - 1 ))
+	local esp_start=$(( bios_end + 1 ))
+	local esp_sec=409600
+	local esp_end=$(( esp_start + esp_sec - 1 ))
+	local esp_mnt=$scratch/mnt/esp
+	local image_start=$(( esp_end + 1 ))
+	local image_sec=$(du -sk $image | awk '{print $1 * 2 * 1.2}')
+	local image_mnt=$scratch/mnt/image
+	local total_sec=$(( image_start + image_sec ))
+	local disk_mb=$(( total_sec / 2 / 1024 + 1 ))
+	local disk_file=$scratch/joyent-debian_live-$release.usb
+
+	truncate -s "$disk_mb"M "$disk_file"
+
+	parted --script "$disk_file" mklabel gpt \
+	    mkpart primary fat32 ${bios_start}s ${bios_end}s \
+		name 1 BIOS set 1 bios_grub on \
+	    mkpart ESP fat32 ${esp_start}s ${esp_end}s \
+		name 2 EFI set 2 esp on \
+	    mkpart primary fat32 ${image_start}s 100% \
+		name 3 LINUX set 3 msftdata on
+
+	gdisk "$disk_file" <<-EOF
+	r     # recovery and transformation options
+	h     # make hybrid MBR
+	1 2 3 # partition numbers for hybrid MBR
+	N     # do not place EFI GPT (0xEE) partition first in MBR
+	EF    # MBR hex code
+	N     # do not set bootable flag
+	EF    # MBR hex code
+	N     # do not set bootable flag
+	83    # MBR hex code
+	Y     # set the bootable flag
+	x     # extra functionality menu
+	h     # recompute CHS values in protective/hybrid MBR
+	w     # write table to disk and exit
+	Y     # confirm changes
+	EOF
+
+	local parts=$(kpartx -s -v -a "$disk_file")
+	cleanup+=("kpartx -d $disk_file")
+
+	esp_dev=$(echo "$parts" | awk -v start=$esp_start \
+	    '$1 == "add" && $NF == start {
+		printf "/dev/mapper/%s", $3;
+		exit 0
+	    }')
+	image_dev=$(echo "$parts" | awk -v start=$image_start \
+	    '$1 == "add" && $NF == start {
+		printf "/dev/mapper/%s", $3;
+		exit 0
+	    }')
+	if [[ -z $esp_dev || -z $image_dev ]]; then
+		echo "$0: failed to find partitions in usb dev" 1>&2
+		exit 1
+	fi
+
+	# Create and mount FAT32 file systems on partitions 2 and 3.  Partition
+	# 1 is not touched.
+	mkdir -p "$esp_mnt" "$image_mnt"
+
+	mkfs.vfat -F32 "$esp_dev"
+	mount "$esp_dev" "$esp_mnt"
+	cleanup+=("onfatal umount $esp_dev")
+
+	mkfs.vfat -F32 "$image_dev"
+	mount "$image_dev" "$image_mnt"
+	cleanup+=("onfatal umount $image_dev")
+
+	grub-install --target=x86_64-efi \
+	    --efi-directory=$esp_mnt --boot-directory=$image_mnt/boot \
+	    --removable --recheck
+
+	grub-install --target=i386-pc --boot-directory=$image_mnt/boot \
+	    --recheck "$disk_file"
+
+	mkdir -p $image_mnt/boot/grub $image_mnt/live
+	cp -r $image/* "$image_mnt"
+	cp $scratch/grub.cfg $image_mnt/boot/grub/grub.cfg
+
+	umount "$image_mnt"
+	umount "$esp_mnt"
+
+	rm -f "$top/joyent-debian_live-$release.usb.gz"
+	pigz -c "$disk_file" > "$top/joyent-debian_live-$release.usb.gz"
+}
+
+function fail_usage {
+	exec 1>&2
+	echo "Usage:"
+	echo "Create a new iamge from scratch"
+	echo "    debian-live"
+	echo ""
+	echo "Run just the specified steps on an existing image build"
+	echo "    debian-live -r release step [...]"
+	echo ""
+	echo "Valid steps are:"
+	printf "    %s\n" "${steps[@]}"
+	exit 1
+}
+
+exec </dev/null
+
+release=$(TZ=UTC date +%Y%m%dT%H%M%SZ)
+steps=(preflight_check
+    create_bootstrap
+    install_live
+    reduce_zfs
+    postinstall
+    prepare_archive_bits
+    create_iso
+    create_usb)
+
+while getopts r:x opt; do
+	case $opt in
+	r)	release=$OPTARG ;;
+	x)	set -x ;;
+	*)	fail_usage ;;
+	esac
+done
+shift $(( $OPTIND - 1 ))
+if (( $# != 0 )); then
+	steps=(preflight_check $@)
+fi
+
+dataset=data/debian-live-$release
+top=/$dataset
+root=$top/chroot
+image=$top/image
+scratch=$top/scratch
+
+motd=$'
+   __        .                   .
+ _|  |_      | .-. .  . .-. :--. |-
+|_    _|     ;|   ||  |(.-\' |  | |
+  |__|   `--\'  `-\' `;-| `-\' \'  \' `-\'
+                   /  ;  Platform ('"$name"' '"$release"$')
+                   `-\'   '"$docurl"'
+'
+
+commit=$(cd $(dirname "$0") && git rev-parse HEAD)
+product="
+Name: Joyent Platform Image
+Image: $name $release
+Documentation: https://github.com/joyent/linux-live/
+Description: $name with zfs $zfs_ver.  THIS IMAGE IS NOT REDISTRIBUTABLE with the zfs kernel modules.
+Commit: https://github.com/joyent/linux-live/commit/$commit
+"
+
+for step in "${steps[@]}"; do
+	$step
+done
 
 clean_exit=true
 set +x
+
+ls -lh $top/*.iso $top/*.usb.gz 2>/dev/null || :
