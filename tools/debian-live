@@ -40,7 +40,7 @@ packages+=(network-manager net-tools openssh-client)
 
 # I noticed these important things are missing
 packages+=(openssh-server vim curl less ca-certificates iproute2 man
-   dnsutils iputils-ping dstat sysstat)
+   dnsutils iputils-ping dstat sysstat sudo strace lsof psmisc)
 
 # ZFS userspace - these are redistributable
 packages+=("zfsutils-linux=$zfs_ver*")
