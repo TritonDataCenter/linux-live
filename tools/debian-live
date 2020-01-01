@@ -47,12 +47,13 @@ packages+=(network-manager net-tools openssh-client)
 packages+=(openssh-server vim curl less ca-certificates iproute2 man
    dnsutils iputils-ping dstat sysstat sudo strace lsof psmisc)
 
-# ZFS userspace - these are redistributable
-packages+=("zfsutils-linux=$zfs_ver*")
-
-# ZFS kernel modules and other stuff required to build a non-dkms deb
-zfs_build_packages+=(dpkg-dev "zfs-dkms=$zfs_ver*" linux-headers-amd64 \
-    fakeroot debhelper)
+# These will be installed while zfs is built, then removed.  Unnecessary
+# dependencies will also be removed.
+zfs_build_packages=(gawk alien libblkid-dev uuid-dev libudev-dev libssl-dev
+    zlib1g-dev libaio-dev libattr1-dev libelf-dev python3-setuptools
+    python3-cffi libffi-dev git build-essential gdebi linux-headers-amd64
+    dpkg-dev fakeroot debhelper git dkms python3-dev
+)
 
 # Args added to 'apt install'
 apt_args=(-y)
@@ -134,9 +135,6 @@ function create_bootstrap {
 }
 
 function install_live {
-	clean+=(unmount_children)
-	mount -t proc proc $root/proc
-
 	chroot "$root" tee /etc/apt/sources.list >/dev/null <<-EOF
 	deb http://deb.debian.org/debian/ $debver main
 	deb-src http://deb.debian.org/debian/ $debver main
@@ -167,6 +165,31 @@ function install_live {
 	    "${apt_args[@]}" "${packages[@]}" "${zfs_build_packages[@]}"
 }
 
+function build_zfs {
+	clean+=(unmount_children)
+	mount -t proc proc $root/proc
+
+	chroot "$root" bash -c '
+	    PS4="BUILD_ZFS: "
+	    set -xeuo pipefail
+
+	    export DEBIAN_FRONTEND=noninteractive
+	    export LC_ALL=C
+
+	    rm -rf zfs
+	    git clone https://github.com/zfsonlinux/zfs.git
+	    cd zfs
+	    ./autogen.sh
+	    ./configure
+	    make -j1 pkg-utils deb-kmod
+	    for file in *.deb; do gdebi -q --non-interactive $file; done
+	    cd ..
+	    rm -rf zfs
+	'
+
+	umount $root/proc
+}
+
 # In the previous "apt install" we built the zfs kernel modules, which brought
 # in over 100 MiB of development tools.  Now, generate a binary deb containing
 # the zfs kernel modules built from zfs-dkms, uninstall all the development
@@ -180,15 +203,11 @@ function reduce_zfs {
 		export DEBIAN_FRONTEND=noninteractive
 		export LC_ALL=C
 
-		dkms mkbmdeb -m zfs -v "$zfs_ver"
-		mv /var/lib/dkms/zfs/$zfs_ver/bmdeb/zfs-modules-*.deb /tmp
-		apt remove --purge -y $pkgs "linux-headers-*"
+		apt remove -y $pkgs "kernel-headers-*"
+		apt autoremove -y
 
-		dpkg -i /tmp/zfs-modules-*.deb
 		rm -f /tmp/zfs-modules-*.deb
 	'
-
-	umount $root/proc
 }
 
 # As much as possible, bits that are needed to support Triton will appear in
@@ -419,6 +438,7 @@ release=$(TZ=UTC date +%Y%m%dT%H%M%SZ)
 steps=(preflight_check
     create_bootstrap
     install_live
+    build_zfs
     reduce_zfs
     install_usr_triton
     postinstall
