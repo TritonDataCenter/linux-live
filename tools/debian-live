@@ -31,6 +31,11 @@ debver=buster
 name="Debian 10"
 docurl=https://github.com/joyent/linux-live
 
+# Where does /usr/node come from?
+manta_url=${MANTA_URL:-https://us-east.manta.joyent.com}
+node_manta_dir=/Joyent_Dev/public/bits/linuxcn
+node_archive=sdcnode-v8.16.1-linux-63d6e664-3f1f-11e8-aef6-a3120cf8dd9d-linuxcn-20191231T144917Z-gdd5749b.tgz
+
 ntp=0.debian.pool.ntp.org
 zfs_ver=0.8.2
 
@@ -185,6 +190,15 @@ function reduce_zfs {
 	'
 
 	umount $root/proc
+}
+
+# As much as possible, bits that are needed to support Triton will appear in
+# /usr/triton.
+function install_usr_triton {
+	chroot "$root" mkdir -p /usr/triton
+	curl "$manta_url/$node_manta_dir/$node_archive" |
+	    chroot "$root" tar -C /usr/triton --no-same-owner -xzf -
+	chroot "$root" ln -sf triton/node /usr/
 }
 
 function postinstall {
@@ -389,6 +403,7 @@ steps=(preflight_check
     create_bootstrap
     install_live
     reduce_zfs
+    install_usr_triton
     postinstall
     prepare_archive_bits
     create_iso
