@@ -182,8 +182,7 @@ function reduce_zfs {
 
 		dkms mkbmdeb -m zfs -v "$zfs_ver"
 		mv /var/lib/dkms/zfs/$zfs_ver/bmdeb/zfs-modules-*.deb /tmp
-		apt remove -y $pkgs "kernel-headers-*"
-		apt autoremove -y
+		apt remove --purge -y $pkgs "linux-headers-*"
 
 		dpkg -i /tmp/zfs-modules-*.deb
 		rm -f /tmp/zfs-modules-*.deb
@@ -209,15 +208,20 @@ function postinstall {
 		set -xeuo pipefail
 
 		echo debian-live-$release >/etc/hostname
-		apt-get -y autoremove
-		apt-get -y clean
+
+		# This pulls in cpp-8, which is 25 MB
+		apt remove -y --purge man-db bsdmainutils
+
+		apt-get autoremove --purge -y
+		apt-get clean
 		rm -rf /var/lib/apt/lists/*
 		rm -rf /var/cache/*
 		rm -f /etc/machine-id /etc/hostid
 
 		passwd -d root
 
-		# For crazy quoting reasons we rely on $motd and $product from env
+		# For crazy quoting reasons we rely on $motd and $product from
+		# env
 		echo "$motd" >/etc/motd
 		ln -sf /etc/motd /etc/issue
 		ln -sf /etc/motd /etc/issue.net
@@ -228,7 +232,8 @@ function postinstall {
 		rm -f /*.old
 		echo "LC_ALL=C" > /etc/default/locale
 
-		# otherwise timesyncd tries ipv6 servers for the first 90 seconds or so.
+		# otherwise timesyncd tries ipv6 servers for the first 90
+		# seconds or so.
 		sed -i "s/^#NTP=.*/NTP='$ntp'/" /etc/systemd/timesyncd.conf
 	'
 }
