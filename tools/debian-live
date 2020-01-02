@@ -214,6 +214,18 @@ function postinstall {
 
 		apt-get autoremove --purge -y
 		apt-get clean
+
+		# wpa_supplicant can add 90 seconds to the boot time.  We do not
+		# support persistence of WiFi creds, so wpa_supplicant can never
+		# do the right thing.  It is not sufficient to disable or mask
+		# this service: It seems destined to outlast even the
+		# cockroaches that remain after all instigators of the zombie
+		# apocalypse are long gone.
+		#
+		# This evil command breaks dependencies and as such must be run
+		# after apt remove.
+		dpkg -P --force-depends wpasupplicant
+
 		rm -rf /var/lib/apt/lists/*
 		rm -rf /var/cache/*
 		rm -f /etc/machine-id /etc/hostid
@@ -240,7 +252,7 @@ function postinstall {
 
 function prepare_archive_bits {
 	mkdir -p $scratch $image/live
-	mksquashfs $root $image/live/filesystem.squashfs -e boot
+	mksquashfs $root $image/live/filesystem.squashfs -noappend -e boot
 	cp $root/boot/vmlinuz-* $image/vmlinuz
 	cp $root/boot/initrd.img-* $image/initrd
 
@@ -253,7 +265,7 @@ set default="0"
 set timeout=30
 
 menuentry "Joyent Debian Live $release" {
-    linux /vmlinuz boot=live quiet nomodeset
+    linux /vmlinuz boot=live
     initrd /initrd
 }
 EOF
