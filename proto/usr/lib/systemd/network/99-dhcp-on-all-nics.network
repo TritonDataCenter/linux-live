@@ -1,0 +1,15 @@
+#
+# Copyright 2020 Joyent, Inc.
+#
+
+#
+# This file is part of the Joyent platform image.  It is intended to configure
+# networking prior to being configured by Triton.
+#
+# To disable this feature, mask this file with:
+#
+#    ln -sf /dev/null /etc/systemd/network/99-dhcp-on-all-nics.network
+#
+
+[Network]
+DHCP=ipv4

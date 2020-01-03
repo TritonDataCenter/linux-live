@@ -1,0 +1,24 @@
+#
+# Copyright 2020 Joyent, Inc.
+#
+
+#
+# This file is delivered as part of the Triton Platform Image.
+#
+# ssh host keys are maintained in the system pool and are present in /var/ssh
+# after the system pool is imported and its file systems are mounted.
+#
+
+[Unit]
+Description=Secure Shell host key generator
+Documentation=https://github.com/joyent/linux-live
+After=zfs.target
+Before=ssh.service ssh.socket
+
+[Service]
+ExecStart=/usr/triton/bin/ssh-host-key-generate
+Type=oneshot
+RemainAfterExit=false
+
+[Install]
+WantedBy=multi-user.target
