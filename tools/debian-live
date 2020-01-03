@@ -43,9 +43,12 @@ zfs_ver=0.8.2		# XXX really master until log spacemap is in a release
 packages=(linux-image-amd64 live-boot systemd-sysv)
 packages+=(net-tools openssh-client)
 
+# For set-hostid, sysinfo, etc.
+packages+=(dmidecode python3)
+
 # I noticed these important things are missing
 packages+=(openssh-server vim curl less ca-certificates iproute2 man
-   dnsutils iputils-ping dstat sysstat sudo strace lsof psmisc)
+   dnsutils iputils-ping sysstat sudo strace lsof psmisc pcp)
 
 # These will be installed while zfs is built, then removed.  Unnecessary
 # dependencies will also be removed.
