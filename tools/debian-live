@@ -269,6 +269,15 @@ DHCP=ipv4
 EOF
 
 		ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+
+		# Being live media, /etc/zfs/zpool.cache is not present/useful.
+		systemctl enable zfs-import-scan.service
+
+		# The root home directory has nothing useful in it.  Removing it
+		# makes it possible to have a dataset mounted on /root, thereby
+		# easily preserving ssh authorized_keys and such.
+		rm -rf /root
+		mkdir -m 700 /root
 	'
 }
 
