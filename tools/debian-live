@@ -7,7 +7,7 @@
 #
 
 #
-# Copyright 2019 Joyent, Inc.
+# Copyright 2020 Joyent, Inc.
 #
 
 #
@@ -41,7 +41,7 @@ zfs_ver=0.8.2
 
 # From https://willhaley.com/blog/custom-debian-live-environment/
 packages=(linux-image-amd64 live-boot systemd-sysv)
-packages+=(network-manager net-tools openssh-client)
+packages+=(net-tools openssh-client)
 
 # I noticed these important things are missing
 packages+=(openssh-server vim curl less ca-certificates iproute2 man
@@ -228,22 +228,8 @@ function postinstall {
 
 		echo debian-live-$release >/etc/hostname
 
-		# This pulls in cpp-8, which is 25 MB
-		apt remove -y --purge man-db bsdmainutils
-
 		apt-get autoremove --purge -y
 		apt-get clean
-
-		# wpa_supplicant can add 90 seconds to the boot time.  We do not
-		# support persistence of WiFi creds, so wpa_supplicant can never
-		# do the right thing.  It is not sufficient to disable or mask
-		# this service: It seems destined to outlast even the
-		# cockroaches that remain after all instigators of the zombie
-		# apocalypse are long gone.
-		#
-		# This evil command breaks dependencies and as such must be run
-		# after apt remove.
-		dpkg -P --force-depends wpasupplicant
 
 		rm -rf /var/lib/apt/lists/*
 		rm -rf /var/cache/*
@@ -263,9 +249,26 @@ function postinstall {
 		rm -f /*.old
 		echo "LC_ALL=C" > /etc/default/locale
 
-		# otherwise timesyncd tries ipv6 servers for the first 90
-		# seconds or so.
-		sed -i "s/^#NTP=.*/NTP='$ntp'/" /etc/systemd/timesyncd.conf
+		file=/usr/lib/systemd/network/99-dhcp-on-all-nics.network
+		cat >$file <<EOF
+#
+# Copyright 2020 Joyent, Inc.
+#
+
+#
+# This file is part of the Joyent platform image.  It is intended to configure
+# networking prior to being configured by Triton.
+#
+# To disable this feature, mask this file with:
+#
+#    ln -s /dev/null $file
+#
+
+[Network]
+DHCP=ipv4
+EOF
+
+		ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 	'
 }
 
