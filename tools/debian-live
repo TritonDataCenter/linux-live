@@ -37,7 +37,7 @@ node_manta_dir=/Joyent_Dev/public/bits/linuxcn
 node_archive=sdcnode-v8.16.1-linux-63d6e664-3f1f-11e8-aef6-a3120cf8dd9d-linuxcn-20191231T144917Z-gdd5749b.tgz
 
 ntp=0.debian.pool.ntp.org
-zfs_ver=0.8.2
+zfs_ver=0.8.2		# XXX really master until log spacemap is in a release
 
 # From https://willhaley.com/blog/custom-debian-live-environment/
 packages=(linux-image-amd64 live-boot systemd-sysv)
@@ -219,6 +219,19 @@ function install_usr_triton {
 	chroot "$root" ln -sf triton/node /usr/
 }
 
+function install_proto {
+	# cpio is used for creating the archive because it will take a list of
+	# files from stdin.  tar is used for extracting it because it will
+	# create any required directories automatically.  The directories are
+	# not included because we don't want to accidentally change the
+	# permissions on directories that already exist.
+	#
+	# XXX consider transitioning to use of a manifest and install(1) for
+	# better control.
+	(cd "$repo/proto" && find . -type d -o -print | cpio -o -H ustar) |
+	    (chroot "$root" /usr/bin/tar --no-same-owner -xvf -)
+}
+
 function postinstall {
 	# Heavily inspired by mi-debian-hvm/debian-10/late-command
 	chroot "$root" env release="$release" motd="$motd" product="$product" \
@@ -242,43 +255,27 @@ function postinstall {
 		echo "$motd" >/etc/motd
 		ln -sf /etc/motd /etc/issue
 		ln -sf /etc/motd /etc/issue.net
-
 		echo "$product" >/etc/product
 
 		find /etc/ssh -name "ssh_host_*key*" -exec rm -f "{}" ";"
+		sed -i -e "s,^#HostKey /etc/ssh/,HostKey /var/ssh/," \
+		    -e "s,^#\(PermitRootLogin prohibit-password\),\1," \
+		    /etc/ssh/sshd_config
+
 		rm -f /*.old
-		echo "LC_ALL=C" > /etc/default/locale
-
-		file=/usr/lib/systemd/network/99-dhcp-on-all-nics.network
-		cat >$file <<EOF
-#
-# Copyright 2020 Joyent, Inc.
-#
-
-#
-# This file is part of the Joyent platform image.  It is intended to configure
-# networking prior to being configured by Triton.
-#
-# To disable this feature, mask this file with:
-#
-#    ln -s /dev/null $file
-#
-
-[Network]
-DHCP=ipv4
-EOF
-
-		ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
 		# Being live media, /etc/zfs/zpool.cache is not present/useful.
 		systemctl enable zfs-import-scan.service
 
-		# The root home directory has nothing useful in it.  Removing it
+		# The root home directory has nothing useful in it. Removing it
 		# makes it possible to have a dataset mounted on /root, thereby
 		# easily preserving ssh authorized_keys and such.
 		rm -rf /root
 		mkdir -m 700 /root
-	'
+
+		# As above, clean cruft here.
+		rm -f /etc/sudoers.d/*
+	    '
 }
 
 function prepare_archive_bits {
@@ -453,6 +450,7 @@ steps=(preflight_check
     build_zfs
     reduce_zfs
     install_usr_triton
+    install_proto
     postinstall
     prepare_archive_bits
     create_iso
@@ -475,6 +473,7 @@ top=/$dataset
 root=$top/chroot
 image=$top/image
 scratch=$top/scratch
+repo=$(git rev-parse --show-toplevel)
 
 motd=$'
    __        .                   .

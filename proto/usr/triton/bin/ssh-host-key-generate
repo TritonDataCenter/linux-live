@@ -1,0 +1,61 @@
+#! /bin/bash
+
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+
+#
+# Copyright 2020 Joyent, Inc.
+#
+
+export PATH=/bin:/usr/bin:/usr/sbin
+
+set -euo pipefail
+
+keyfiles=($(awk '$1 == "HostKey" {print $2}' /etc/ssh/sshd_config))
+
+declare -A checked
+
+for path in "${keyfiles[@]}"; do
+	if [[ -f $path ]]; then
+		continue
+	fi
+
+	dir=$(dirname "$path")
+	file=$(basename "$path")
+
+	if [[ ${checked["$path"]:-no} == no ]]; then
+		if [[ ! -d $dir ]]; then
+			echo "$0: $dir does not exist" 1>&2
+			exit 1
+		fi
+
+		# Since we expect keys to be in the root of a mounted ZFS file
+		# system we refuse to create keys in a directorty that doesn't
+		# match our expectations.  Without this check, an errant key
+		# generation could pollute the mountpoint, thereby breaking `zfs
+		# mount`.
+		if [[ $(zfs list -Ho mountpoint "$dir") != $dir ]]; then
+			echo "$0: $dir is not mounted as expected" 1>&2
+			exit 1
+		fi
+		checked["$path"]=yes
+	fi
+
+	if ! [[ $file =~ ssh_host_.*_key ]]; then
+		echo "$0: unable to determine key type from $path" 1>&2
+		exit 1
+	fi
+	keytype=$(echo "$file" | sed -e 's/^ssh_host_//' -e 's/_key$//')
+
+	case $keytype in
+	rsa)	bits=(-b 4096) ;;
+	ecdsa)	bits=(-b 521) ;;
+	*)	bits=()
+	esac
+	ssh-keygen -t "$keytype" -P "" -f "$path" "${bits[@]}"
+done
+
+exit 0
