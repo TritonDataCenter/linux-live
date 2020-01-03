@@ -427,6 +427,24 @@ function create_usb {
 	pigz -c "$disk_file" > "$top/joyent-debian_live-$release.usb.gz"
 }
 
+function run {
+	local step=$1
+	local presnap=$dataset@pre-$step
+	local postsnap=$dataset@post-$step
+
+	if zfs list -Ho name "$presnap" >/dev/null 2>&1; then
+		zfs rollback -r "$presnap"
+	elif zfs list -Ho name "$dataset" >/dev/null 2>&1; then
+		zfs snapshot "$presnap"
+	fi
+
+	$step
+
+	if zfs list -Ho name "$dataset" >/dev/null 2>&1; then
+		zfs snapshot $postsnap
+	fi
+}
+
 function fail_usage {
 	exec 1>&2
 	echo "Usage:"
@@ -437,14 +455,16 @@ function fail_usage {
 	echo "    debian-live -r release step [...]"
 	echo ""
 	echo "Valid steps are:"
-	printf "    %s\n" "${steps[@]}"
+	printf "    %s\n" "${steps[@]}" ...
+	echo ""
+	echo "Literal ... may be used to specify all remaining steps."
 	exit 1
 }
 
 exec </dev/null
 
 release=$(TZ=UTC date +%Y%m%dT%H%M%SZ)
-steps=(preflight_check
+all_steps=(preflight_check
     create_bootstrap
     install_live
     build_zfs
@@ -464,8 +484,27 @@ while getopts r:x opt; do
 	esac
 done
 shift $(( $OPTIND - 1 ))
-if (( $# != 0 )); then
-	steps=(preflight_check $@)
+if (( $# == 0 )); then
+	steps=("${all_steps[@]}")
+else
+	steps=()
+	prev=
+	for step in $@; do
+		if [[ $step != ... ]]; then
+			steps+=($step)
+			prev=$step
+			continue
+		fi
+		for step in "${all_steps[@]}"; do
+			if [[ $step == $prev ]]; then
+				prev=_found_it
+				continue
+			fi
+			if [[ $prev == _found_it ]]; then
+				steps+=($step)
+			fi
+		done
+	done
 fi
 
 dataset=data/debian-live-$release
@@ -494,7 +533,7 @@ Commit: https://github.com/joyent/linux-live/commit/$commit
 "
 
 for step in "${steps[@]}"; do
-	$step
+	run $step
 done
 
 clean_exit=true
