@@ -48,7 +48,7 @@ packages+=(dmidecode python3)
 
 # I noticed these important things are missing
 packages+=(openssh-server vim curl less ca-certificates iproute2 man
-   dnsutils iputils-ping sysstat sudo strace lsof psmisc pcp)
+   dnsutils iputils-ping sysstat sudo strace lsof psmisc)
 
 # These will be installed while zfs is built, then removed.  Unnecessary
 # dependencies will also be removed.
@@ -233,6 +233,20 @@ function install_proto {
 	# better control.
 	(cd "$repo/proto" && find . -type d -o -print | cpio -o -H ustar) |
 	    (chroot "$root" /usr/bin/tar --no-same-owner -xvf -)
+
+	# Enable all services that were installed.
+	chroot "$root" bash -c '
+	    PS4="INSTALL_PROTO: "
+	    set -xeuo pipefail
+	    export LC_ALL=C
+
+	    services=$(find /usr/lib/systemd -type f -name triton-\*.service |
+		awk -F/ "{print \$NF}")
+	    [[ -z $services ]] && exit 0
+
+	    systemctl enable $services
+	'
+
 }
 
 function postinstall {
