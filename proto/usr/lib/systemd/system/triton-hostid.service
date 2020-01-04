@@ -14,14 +14,10 @@
 [Unit]
 Description=Set hostid based on system uuid
 Documentation=https://github.com/joyent/linux-live
-After=systemd-remount-fs.service
+DefaultDependencies=no
 Before=zfs-import-cache.service
 Before=zfs-import-scan.service
 Before=zfs-import.service
-Before=zfs-mount.service
-Before=zfs-share.service
-Before=zfs-volume-wait.service
-Before=zfs-zed.service
 
 [Service]
 ExecStart=/usr/triton/bin/set-hostid
@@ -29,4 +25,6 @@ Type=oneshot
 RemainAfterExit=false
 
 [Install]
-WantedBy=multi-user.target
+RequiredBy=zfs-import-cache.service
+RequiredBy=zfs-import-scan.service
+RequiredBy=zfs-import.service
