@@ -458,7 +458,7 @@ function fail_usage {
 	echo "    debian-live -r release step [...]"
 	echo ""
 	echo "Valid steps are:"
-	printf "    %s\n" "${steps[@]}" ...
+	printf "    %s\n" "${all_steps[@]}" ...
 	echo ""
 	echo "Literal ... may be used to specify all remaining steps."
 	exit 1
