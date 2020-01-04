@@ -13,7 +13,7 @@
 Description=Secure Shell host key generator
 Documentation=https://github.com/joyent/linux-live
 After=zfs.target
-Before=ssh.service ssh.socket
+Before=ssh.service
 
 [Service]
 ExecStart=/usr/triton/bin/ssh-host-key-generate
