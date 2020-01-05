@@ -196,8 +196,9 @@ function build_zfs {
 
 # In the previous "apt install" we built the zfs kernel modules, which brought
 # in over 100 MiB of development tools.  Now, generate a binary deb containing
-# the zfs kernel modules built from zfs-dkms, uninstall all the development
-# stuff, and install the non-dkms binary zfs module.
+# the zfs kernel modules built from zfs-dkms and install the non-dkms binary zfs
+# module.  The packages needed for building will be kept around until
+# postinstall as other phases may need them.
 function reduce_zfs {
 	chroot "$root" env zfs_ver="$zfs_ver" pkgs="${zfs_build_packages[*]}" \
 	    bash -c '
@@ -208,7 +209,6 @@ function reduce_zfs {
 		export LC_ALL=C
 
 		apt remove -y $pkgs "kernel-headers-*"
-		apt autoremove -y
 
 		rm -f /tmp/zfs-modules-*.deb
 	'
@@ -220,7 +220,15 @@ function install_usr_triton {
 	chroot "$root" mkdir -p /usr/triton
 	curl "$manta_url/$node_manta_dir/$node_archive" |
 	    chroot "$root" tar -C /usr/triton --no-same-owner -xzf -
-	chroot "$root" ln -sf triton/node /usr/
+	chroot "$root" bash -c '
+	    PS4="INSTALL_USR_TRITON: "
+	    set -xeuo pipefail
+	    export LC_ALL=C
+	    export PATH=/usr/node/bin:$PATH
+
+	    ln -sf triton/node /usr/
+	    npm install -g manta json
+	'
 }
 
 function install_proto {
