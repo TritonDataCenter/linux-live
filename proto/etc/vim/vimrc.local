@@ -1,0 +1,5 @@
+" This fixes the mouse=a misfeature that breaks copy-and-paste, my favorite way
+" to code.  See https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=864074.
+runtime! defaults.vim
+let g:skip_defaults_vim = 1
+set mouse=
