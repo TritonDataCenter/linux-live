@@ -318,7 +318,12 @@ insmod all_video
 set default="0"
 set timeout=30
 
-menuentry "Joyent Debian Live $release" {
+menuentry "Joyent Debian Live $release with DHCP" {
+    linux /vmlinuz boot=live triton.dhcp-all-nics
+    initrd /initrd
+}
+
+menuentry "Joyent Debian Live $release without DHCP" {
     linux /vmlinuz boot=live
     initrd /initrd
 }
