@@ -185,6 +185,7 @@ function build_zfs {
 	    ./autogen.sh
 	    ./configure
 	    make -j1 pkg-utils deb-kmod
+	    rm kmod-zfs-devel*.deb zfs-test*.deb
 	    for file in *.deb; do gdebi -q --non-interactive $file; done
 	    cd ..
 	    rm -rf zfs
