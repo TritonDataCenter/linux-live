@@ -147,7 +147,53 @@ Gateway=192.168.1.1
 DNS=192.168.1.1
 ```
 
-## Machine template
+### Rename network links
+
+In theory, renaming a network link should be as simple as dropping a `.link`
+file in `/etc/systemd/network` and nudging systemd in some way.  It's a little
+more complicated.
+
+Per `systemd.link(5)`:
+
+> Network link configuration is performed by the net_setup_link udev builtin.
+
+As it turns out, `systemd-udevd` is one of those services that really does need
+to start early.  I think (but do not know) that it is not possible to reach
+`zfs.target` prior to starting `systemd-udevd`, so we need to nudge
+`systemd-udevd` after the `/etc/systemd/network/*.link` files become available.
+
+First, an example `.link` file to rename a link to a name that makes it suitable
+for including in other unit files and drop-in files.  As a reminder, this
+directory is mounted from the system zpool.
+
+```
+# cat /etc/systemd/network/00-admin0.link
+[Match]
+MACAddress=52:54:00:ab:bf:60
+
+[Link]
+Name=admin0
+```
+
+To get this to be recognized, we have
+[triton-post-import.service](../proto/usr/lib/systemd/system/triton-post-import.service)
+which runs the [post-zpool-import](../proto/usr/triton/bin/post-zpool-import)
+script.
+
+In order to make that link useful, we need to force the link up.  I don't yet
+see a way to do that in systemd without assigning an address.  Temporarily, I
+have assigned a secondary loopback address.
+
+```
+# cat /etc/systemd/network/admin0.network
+[Match]
+Name=admin0
+
+[Network]
+Address=127.0.0.2
+```
+
+### Machine template
 
 The following can be used to create a template service that allows ephemeral
 instances to be created.  This file should be stored as
@@ -177,7 +223,8 @@ Boot=on
 PrivateUsers=auto
 
 [Network]
-Private=on
+Private=yes
+MACVLAN=admin0
 EOF
 # systemctl start triton-instance@deb9
 ```
