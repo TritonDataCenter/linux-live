@@ -43,6 +43,9 @@ zfs_ver=0.8.2		# XXX really master until log spacemap is in a release
 packages=(linux-image-amd64 live-boot systemd-sysv)
 packages+=(net-tools openssh-client)
 
+# For systemd-nspawn
+packages+=(systemd-container)
+
 # For set-hostid, sysinfo, etc.
 packages+=(dmidecode python3)
 
