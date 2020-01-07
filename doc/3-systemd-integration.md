@@ -20,10 +20,12 @@ leap of faith with me.
 
 ## systemd documentation
 
-The documentation set for systemd is surprisingly good.  For some reason, not
-all man pages get installed with systemd, but they are available at
+The documentation set for systemd is surprisingly good.  Online versions of the
+man pages are at
 [freedesktop.org](https://www.freedesktop.org/software/systemd/man/index.html).
-If you are a just getting started, a reasonable order of reading is:
+Notice that the commands (sections 1 and 8) tend to be `systemd` **dash**
+`something` and files (section 5) tend to be described in `systemd` **dot**
+`something`.
 
 * [systemd(1)](https://www.freedesktop.org/software/systemd/man/systemd.html)
 * [systemctl(1)](https://www.freedesktop.org/software/systemd/man/systemctl.html#)
