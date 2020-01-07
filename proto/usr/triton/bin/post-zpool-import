@@ -1,0 +1,36 @@
+#! /bin/bash
+
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+
+#
+# Copyright 2020 Joyent, Inc.
+#
+
+export PATH=/bin:/usr/bin:/usr/sbin
+
+set -euo pipefail
+
+# Find any new unit files, drop-in files, and masks  that have appeard due to
+# mounts.
+systemctl daemon-reload
+
+#
+# The /etc/systemd/network/*.link files are processed as a result of udev add
+# events.  systemd-udevd needs to start way early and those add events happened
+# a long time ago.  Let's trigger them again.
+#
+# Ideally, we would use the `-w` option to `udevadm trigger`.  That can hang
+# forever when a link is renamed, presumably because it is waiting for an event
+# that includes the old name.  Instead, we fire off the first commadn then wait
+# for all events - even those unrelated to the trigger - to finish.  This isn't
+# realy a big deal, I think.
+#
+# XXX-linuxcn: file a ticket at https://github.com/systemd/systemd.
+#
+systemctl restart systemd-udevd
+udevadm trigger -s net -v -c add
+udevadm settle
