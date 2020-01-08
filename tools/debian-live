@@ -134,8 +134,6 @@ function preflight_check {
 }
 
 function create_bootstrap {
-	zfs create $dataset
-	#clean+=("onfatal zfs destroy $dataset")
 	debootstrap --arch=amd64 --variant=minbase "$debver" "$root" \
 	    http://ftp.us.debian.org/debian/
 }
@@ -479,9 +477,10 @@ function run {
 	fi
 }
 
-function fail_usage {
-	exec 1>&2
+function usage {
 	echo "Usage:"
+	echo "    debian-live [-h] [-d dataset] [-r release]  [step ...]"
+	echo ""
 	echo "Create a new iamge from scratch"
 	echo "    debian-live"
 	echo ""
@@ -492,6 +491,11 @@ function fail_usage {
 	printf "    %s\n" "${all_steps[@]}" ...
 	echo ""
 	echo "Literal ... may be used to specify all remaining steps."
+}
+
+function fail_usage {
+	exec 1>&2
+	usage
 	exit 1
 }
 
@@ -509,9 +513,12 @@ all_steps=(preflight_check
     prepare_archive_bits
     create_iso
     create_usb)
+dataset=
 
-while getopts r:x opt; do
+while getopts d:hr:x opt; do
 	case $opt in
+	d)	dataset=$OPTARG ;;
+	h)	usage; exit 0 ;;
 	r)	release=$OPTARG ;;
 	x)	set -x ;;
 	*)	fail_usage ;;
@@ -541,8 +548,35 @@ else
 	done
 fi
 
-dataset=data/debian-live-$release
-top=/$dataset
+if [[ -z $dataset ]]; then
+	datasets=($(zfs list -Ho name -d 1))
+	pools=()
+	for ds in $(zfs list -Ho name -d 1); do
+		case $(basename "$ds") in
+		$ds)
+			pools+=($ds)
+			;;
+		debian-live)
+			dataset=$ds
+			break
+			;;
+		esac
+	done
+	if [[ -z $dataset && ${#pools[@]} == 1 ]]; then
+		dataset=${pools[0]}/debian-live
+	fi
+fi
+if [[ -z $dataset ]]; then
+	echo "$0: Unable to determine top-level dataset. Specify with -d" 1>&2
+	exit 1
+fi
+
+dataset=$dataset/$release
+
+if ! zfs list -Ho name "$dataset" >/dev/null 2>&1; then
+	zfs create -p "$dataset"
+fi
+top=$(zfs list -Ho mountpoint "$dataset")
 root=$top/chroot
 image=$top/image
 scratch=$top/scratch
