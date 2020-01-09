@@ -91,6 +91,19 @@ mounted over the root file system, just set `canmount=noauto`.
 # zfs create triton/system/var/sshd
 ```
 
+### Standard datasets and mount points
+
+| Mountpoint           | ZFS Filesystem                 | Notes                |
+|----------------------|--------------------------------|----------------------|
+| /etc/systemd/network | triton/platform/etc/systemd/network | [systemd.network](https://systemd.network/systemd.network.html) |
+| /etc/sysusers.d      | triton/platform/etc/sysusers.d | [systemd.sysusers.d](https://www.freedesktop.org/software/systemd/man/sysusers.d.html) |
+| /home                | triton/platform/home           | Useful for developers home dirs, maybe useful for customers requiring non-root system users. Use in conjunction with `/etc/sysusers.d`. |
+| /opt                 | triton/platform/opt            | Likely location of installed agents. |
+| /root                | triton/platform/root           | Persistent root dir helpful for `authorized_keys` and such. |
+| /triton              | triton                         | Default mount point for pool.  Maybe we shouldn't mount it? |
+| /var/imgadm          | triton/platform/var/imgadm     | Image manifests and such. |
+| /var/lib/machines/\* | triton/:instance\_uuid         | /var/lib/machines helps with [machinectl] integration |
+| /var/ssh             | triton/platform/var/ssh        | ssh keys |
 
 ## Boot integration
 
@@ -106,59 +119,25 @@ non-dkms version of ZFS is installed in `live/filesystem.squashfs` root file
 system.  This means that systemd services found in the squashfs archive are
 responsible for importing the pool and mounting file systems.  Since there are
 some systemd services that are defined in files defined or altered by files
-that exist in the system zpool, there are hooks in the platform image to trigger
-various systemd reload and restart actions after the pool is imported.  See
-[*Platform image services*](3-systemd-integration.md#platform-image-services)
-for details.
+that exist in the system zpool, there are *hook scripts* and *boot scripts*, as
+described in `initramfs-tools(7)`, that ensure that the persistent data stored
+in ZFS is mounted before systemd starts.  In particular:
+
+- [sethostid](../src/sethostid) is run to set the hostid to a hash of the
+  system's UUID.  This is the same system UUID that is used by Triton.
+- The [triton](../proto/usr/share/initramfs-tools/hooks/triton) *hook script*
+  ensures that `sethostid`, `dmidecode`, and any libraries they require are in
+  `initrd`.
+- The [syspool](../proto/usr/share/initramfs-tools/scripts/live-bottom/syspool)
+  *boot script* runs at boot to find the system pool, import it, and mount the
+  ZFS file systems that are needed early in boot.  Services that can start later
+  (e.g. Triton agents) should include `After=zfs.target` so they start after the
+  systemd mounts the remaining datasets.
 
 
 ## Future directions
 
 The following describe ideas, not decisions.
-
-### Import system pool before systemd starts
-
-The current boot order is along the lines of:
-
-* grub
-  * load `vmlinuz` and `initrd`
-  * boot with `boot=live` on the command line
-* While running from `initrd`
-  * `init` is a shell script (`/init`)
-  * The `boot=live` kernel command line argument triggers use of
-    [linux-live](https://www.linux-live.org/) to find `live/filesystem.squashfs`
-    on the boot medium and mount it on an altnerate root
-  * Various mounts are performed
-  * root is pivoted to the squashfs root
-  * systemd is started
-  * all of the stuff that has to happen early happens
-  * import the system ZFS pool
-  * mount ZFS file systems
-  * systemd and various services are nudged to learn about the things that
-    popped up in the just-mounted directories
-
-Many of the gyrations described in
-[*Platform image services*](3-systemd-integration.md#platform-image-services)
-could be avoided if the process was changed to be:
-
-* grub
-  * load `vmlinuz` and `initrd`
-  * boot with `boot=live` on the command line
-* While running from `initrd`
-  * `init` is a shell script (`/init`)
-  * The `boot=live` kernel command line argument triggers use of
-    [linux-live](https://www.linux-live.org/) to find `live/filesystem.squashfs`
-    on the boot medium and mount it on an altnerate root
-  * **import the system pool**
-  * **mount zfs file systems that are important for system boot**
-  * Various mounts are performed
-  * root is pivoted to the squashfs root
-  * systemd is started
-  * all of the stuff that has to happen early happens
-  * ~~import the system ZFS pool~~
-  * mount **the remaining** ZFS file systems
-  * ~~systemd and various services are nudged to learn about the things that
-    popped up in the just-mounted directories~~
 
 ### Dataset delegation
 
@@ -172,4 +151,6 @@ namespace for zfs.
 ### ZFS security
 
 We need to be sure that container users are not able to muck with zfs or see
-datasets not mounted in the container or delegated to it..
+datasets not mounted in the container or delegated to it.  It may be that we
+just need to be sure that `/dev/zfs` does not appear in containers and that
+containers are not able to create new device nodes.

@@ -1,13 +1,20 @@
+#!/bin/sh -e
+
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
 
 #
 # Copyright 2020 Joyent, Inc.
 #
 
-# Triton places network configuration in /etc/systemd/network, which is mounted
-# from the system pool.
-[Unit]
-After=zfs.target
+if [ "$1" = "prereqs" ]; then
+	exit 0
+fi
+
+. /usr/share/initramfs-tools/hook-functions
+
+copy_exec /usr/sbin/dmidecode
+copy_exec /usr/triton/bin/sethostid /bin/sethostid
