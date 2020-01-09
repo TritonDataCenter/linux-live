@@ -233,6 +233,8 @@ function install_usr_triton {
 }
 
 function install_proto {
+	(cd $repo/src && make install)
+
 	# cpio is used for creating the archive because it will take a list of
 	# files from stdin.  tar is used for extracting it because it will
 	# create any required directories automatically.  The directories are
@@ -291,9 +293,6 @@ function postinstall {
 
 		rm -f /*.old
 
-		# Being live media, /etc/zfs/zpool.cache is not present/useful.
-		systemctl enable zfs-import-scan.service
-
 		# The root home directory has nothing useful in it. Removing it
 		# makes it possible to have a dataset mounted on /root, thereby
 		# easily preserving ssh authorized_keys and such.
@@ -302,6 +301,8 @@ function postinstall {
 
 		# As above, clean cruft here.
 		rm -f /etc/sudoers.d/*
+
+		update-initramfs -u
 	    '
 }
 
@@ -319,7 +320,12 @@ insmod all_video
 set default="0"
 set timeout=30
 
-menuentry "Joyent Debian Live $release with DHCP" {
+menuentry "Joyent Debian Live $release without DHCP ttyS0" {
+    linux /vmlinuz boot=live console=ttyS0
+    initrd /initrd
+}
+
+menuentry "Joyent Debian Live $release with default networking" {
     linux /vmlinuz boot=live triton.dhcp-all-nics
     initrd /initrd
 }

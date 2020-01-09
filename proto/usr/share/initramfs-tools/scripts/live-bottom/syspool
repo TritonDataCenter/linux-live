@@ -1,0 +1,67 @@
+#!/bin/sh -e
+
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+
+#
+# Copyright 2019 Joyent, Inc.
+#
+
+#
+# This script is responsible for mounting file systems required by systemd from
+# the system zpool prior to starting systemd.
+#
+
+if [ "$1" = "prereqs" ]; then
+	exit 0
+fi
+
+is_syspool()
+{
+	p=$1
+	zfs mount $p || return 1
+
+	mp=`zfs list -Ho mountpoint $p`
+	if [ -f $mp/.system_pool ]; then
+		return 0
+	fi
+	zfs umount "$p"
+	return 1
+}
+
+sethostid
+modprobe zfs
+zpool import -aN
+
+syspool=
+for pool in `zfs list -Ho name -d0`; do
+	if is_syspool $pool; then
+		echo "MG pool $pool is the system pool"
+		syspool=$pool
+		break
+	fi
+	echo "MG pool $pool is not the system pool"
+done
+
+if [ -z "$syspool" ]; then
+	echo "MG no system pool"
+	exit 0
+fi
+
+(zfs list -Ho canmount,name,mountpoint -p -r $syspool/platform || true) | \
+    while IFS=$'\t' read canmount name mountpoint; do
+	[ "$canmount" = on ] || continue
+	case $name in
+	$syspool/platform/etc/systemd/*| \
+	$syspool/platform/etc/sysusers.d)
+		mp=$rootmnt/$mountpoint
+		mkdir -p "$mp"
+		echo "MG mounting $name on $mp"
+		mount -o zfsutil -t zfs "$name" "$mp"
+		;;
+	esac
+    done
+
+exit 0
