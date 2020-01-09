@@ -57,30 +57,6 @@ All systemd unit and drop-in files that are part of the platform image are
 delivered under `/usr/lib/systemd`.  This ensures that most directories under
 `/etc/systemd` are empty, allowing zfs file systems to be mounted on them.
 
-### Consistent hostid
-
-By default, each Linux system will get a unique hostid by generating a random
-one at first boot.  Depending on timing, the hostid may be generated based on
-the system's IP address.  In a DHCP world, the timing and consistent IP address
-are not guaranteed.  With live media, every boot is a first boot, so a unique
-hostid may be generated on every boot.  That's fine, except when we are relying
-on the hostid for something important.
-
-Normally when we want to keep state, we store the data in the zpool.  That
-doesn't work in this case, because the hostid is part of the mechanism used by
-ZFS to ensure that the pool is only imported by a single host.
-
-To generate a consistent hostid,
-[triton-hostid.service](../proto/usr/lib/systemd/system/triton-hostid.service)
-calls [set-hostid](../proto/usr/triton/bin/set-hostid), which generates the
-hostid using a crc32 hash of the system's UUID.  Since Triton relies on
-uniquness and permanence of the system UUID, there's a very good chance that the
-crc32 hash of the UUID will be sufficiently for ZFS' needs.
-
-One notable feature part of this service is the use of `DefaultDependencies=no`.
-This was required to avoid a dependency cycle caused by the default
-dependencies.
-
 
 ### Enable DHCP on all NICs
 
@@ -105,29 +81,12 @@ It is anticipated that enabling dhcp on all NICs is a poor choice in many cases
 and we need to have a way to override it without selecting a non-default boot
 entry each time.
 
-To cause `systemd.networkd` to start zfs directoriese containing configurate are
-mounted, we start networking after `zfs.target` is reached.  This is
-accomplished by using a drop-in file to add `After=zfs.target`.
-`/usr/lib/systemd/system/systemd-networkd.service.d/triton.conf` contains:
-
-```
-[Unit]
-After=zfs.target
-```
+As described in [*Dataset hierarchy*](4-zfs.md#datasets-hierarchy),
+`/etc/systemd/network` is persistent across boots.  This can be leveraged to
+create non-default persistent network configuration.  Details follow.
 
 The following are not part of the platform image, but are included here to give
 a complete picture of why the above items were configured the way there were.
-
-We need to be sure that `systemd.networkd.service` is able to use
-configuration that is stored in the system zpool.  As described in XXX, a file
-system is mounted at `/etc/systemd/network` with:
-
-```
-# zfs create -o canmount=off -o mountpoint=/ triton/system
-# zfs create -o canmount=off triton/system/etc
-# zfs create -o canmount=off triton/system/etc/systemd
-# zfs create triton/system/etc/systemd/network
-```
 
 To prevent `99-dhcp-all-nics.network` from having effect, we can now mask it
 with a symbolic link in `/etc/systemd/network`:
@@ -136,7 +95,7 @@ with a symbolic link in `/etc/systemd/network`:
 # ln -s /dev/null /etc/systemd/network/99-dhcp-all-nics.network
 ```
 
-Finally, to add static configuration of a single nic, we add
+To add static configuration of a single nic, we add
 `/etc/systemd/network/10-admin.network`:
 
 ```
@@ -151,22 +110,19 @@ DNS=192.168.1.1
 
 ### Rename network links
 
-In theory, renaming a network link should be as simple as dropping a `.link`
-file in `/etc/systemd/network` and nudging systemd in some way.  It's a little
-more complicated.
+Renaming a network link is as simple as dropping a `.link` file in
+`/etc/systemd/network` and nudging systemd or rebooting.
 
 Per `systemd.link(5)`:
 
 > Network link configuration is performed by the net_setup_link udev builtin.
 
 As it turns out, `systemd-udevd` is one of those services that really does need
-to start early.  I think (but do not know) that it is not possible to reach
-`zfs.target` prior to starting `systemd-udevd`, so we need to nudge
-`systemd-udevd` after the `/etc/systemd/network/*.link` files become available.
+to start early.
 
-First, an example `.link` file to rename a link to a name that makes it suitable
-for including in other unit files and drop-in files.  As a reminder, this
-directory is mounted from the system zpool.
+This example `.link` file can be used to rename a link to a name that makes it
+suitable for including in other unit files and drop-in files.  As a reminder,
+this directory is mounted from the system zpool.
 
 ```
 # cat /etc/systemd/network/00-admin0.link
@@ -177,14 +133,23 @@ MACAddress=52:54:00:ab:bf:60
 Name=admin0
 ```
 
-To get this to be recognized, we have
-[triton-post-import.service](../proto/usr/lib/systemd/system/triton-post-import.service)
-which runs the [post-zpool-import](../proto/usr/triton/bin/post-zpool-import)
-script.
+To get this to be recognized, we can reboot or nudge systemd.  Nudging systemd
+is a subset of:
 
-In order to make that link useful, we need to force the link up.  I don't yet
-see a way to do that in systemd without assigning an address.  Temporarily, I
-have assigned a secondary loopback address.
+- Run `systemctl daemon-reload` to let systemd that a new drop-in file is
+  present.  (XXX not sure this is needed)
+- Run `systemctl restart systemd-udevd` to let udevd know that it has some new
+  configuration.
+- Run `udevadm -s net -c add`.  While it is tempting to add the `-w` option to
+  wait for it to complete, there's a bug in systemd (XXX-linuxcn file it) in
+  that the wait never completes because it seems to need to wait on the renamed
+  path, not the original path.  Instead, if you need to ensure that the async
+  `udevd` work is done, run `udevadm settle`.
+
+The the link renamed, it can be configured.  If the link doesn't need an address
+in the host, the link will remain down.  This causes problems for macvlan
+instances in containers, as they cannot use their macvlan instances while the
+lower link is down.
 
 ```
 # cat /etc/systemd/network/admin0.network
@@ -192,7 +157,17 @@ have assigned a secondary loopback address.
 Name=admin0
 
 [Network]
+# XXX-linuxcn: hack to bring lower-link up.
 Address=127.0.0.2
+```
+
+If we want to attach metadata to a link (or any other unit file), that can be
+done with `X-` prefixes.
+
+```
+[X-Triton]
+X-NICTag=admin
+X-Customer=00000000-0000-0000-0000-000000000000
 ```
 
 ### Machine template
@@ -226,6 +201,7 @@ PrivateUsers=auto
 
 [Network]
 Private=yes
+# A symbolic lower-link name makes this much clearer than enp7s0 would be
 MACVLAN=admin0
 EOF
 # systemctl start triton-instance@deb9
