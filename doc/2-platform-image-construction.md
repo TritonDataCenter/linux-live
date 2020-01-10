@@ -74,10 +74,17 @@ described below.
 
 The build machine should be running Debian 10 with zfs.
 
+The build process is self-hosting.  The first image needs to be created
+elsewhere - any Debian 10 box with the right packages well do.  Once your
+organization has the first image, it is probably easiest to go with the self
+hosting route.
+
 ### `/bin/sh`
 
 Debian uses `dash` as the Bourne shell.  It is less featureful than `bash`,
 which causes problems for some Joyent Makefiles.  To work around this:
+
+XXX-linuxcn: remove this advice once more cleanup happens
 
 ```
 # dpkg-reconfigure dash
