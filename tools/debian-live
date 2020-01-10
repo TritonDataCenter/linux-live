@@ -106,31 +106,46 @@ function unmount_children {
 
 # Ensure we have all the commands that will be needed
 function preflight_check {
-	local cmds
-	typeset -A cmds
-	cmds["mcopy"]=mtools
-	cmds["mksquashfs"]=squashfs-tools
-	cmds["xorriso"]=xorriso
-	cmds["efibootmgr"]=grub-efi
-	cmds["mkfs.vfat"]=dosfstools
-	cmds["pigz"]=pigz
-	cmds["kpartx"]=kpartx
+	local packages=(
+		build-essential		# to build src/sethostid
+		debootstrap		# called by this script
+		dosfstools		# mkfs.vfat called by this script
+		gdisk			# called by this script
+		git			# called by this script
+		grub-efi		# called by this script
+		grub-pc-bin		# for grub-mkstandalone
+		kpartx			# called by this script
+		zlib1g-dev		# to build src/sethostid
+		mtools			# mcopy called by this script
+		parted			# called by this script
+		pigz			# called by this script
+		squashfs-tools		# mksquashfs called by this script
+		xorriso			# called by this script
+	)
 
-	missing=()
-	for cmd in ${!cmds[@]}; do
-		if ! type -path "$cmd" >/dev/null 2>&1; then
-			echo "$0: missing command $cmd" 1>&2
-			missing+=(${cmds["$cmd"]})
+	local missing=() status
+	for pkg in ${packages[@]}; do
+		status=$(dpkg-query -W -f '${db:Status-Status}' $pkg \
+		    2>/dev/null || true)
+		if [[ $status != installed ]]; then
+			missing+=($pkg)
 		fi
 	done
-	if (( ${#missing[@]} != 0 )); then
-		exec 1>&2
-		echo "$0: Missing ${#missing[@]} packages."
-		echo ""
-		echo "To fix, run:"
-		echo "    apt install -y ${missing[@]}"
-		exit 1
+	if (( ${#missing[@]} == 0 )); then
+		return 0
 	fi
+	if [[ $install_missing == true ]]; then
+		apt update
+		apt install -y "${missing[@]}"
+		return 0
+	fi
+
+	exec 1>&2
+	echo "$0: Missing ${#missing[@]} packages."
+	echo ""
+	echo "To fix, run:"
+	echo "    apt install -y ${missing[*]}"
+	exit 1
 }
 
 function create_bootstrap {
@@ -485,7 +500,16 @@ function run {
 
 function usage {
 	echo "Usage:"
-	echo "    debian-live [-h] [-d dataset] [-r release]  [step ...]"
+	echo "    debian-live -h"
+	echo "    debian-live [-m] [-d dataset] [-r release] [step ...]"
+	echo ""
+	echo "  -h  Show this message."
+	echo "  -d  Build within specified dataset."
+	echo "  -m  Install packages that are needed for succesful execution."
+	echo "      Without this, preflight_check will provide an error message"
+	echo "      and exit if any required packages are not installed."
+	echo "  -r  Use this release.  Most useful when retrying a failed image"
+	echo "      build after fixing something."
 	echo ""
 	echo "Create a new iamge from scratch"
 	echo "    debian-live"
@@ -520,11 +544,13 @@ all_steps=(preflight_check
     create_iso
     create_usb)
 dataset=
+install_missing=false
 
-while getopts d:hr:x opt; do
+while getopts d:hmr:x opt; do
 	case $opt in
 	d)	dataset=$OPTARG ;;
 	h)	usage; exit 0 ;;
+	m)	install_missing=true ;;
 	r)	release=$OPTARG ;;
 	x)	set -x ;;
 	*)	fail_usage ;;
@@ -552,6 +578,13 @@ else
 			fi
 		done
 	done
+fi
+
+# Do the preflight_check early to avoid erroring out when trying to use commands
+# like `git` that may not already be installed.
+if [[ ${steps[0]} == preflight_check ]]; then
+	preflight_check
+	steps[0]=true
 fi
 
 if [[ -z $dataset ]]; then
