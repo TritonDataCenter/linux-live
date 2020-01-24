@@ -13,7 +13,34 @@
 **NOTICE:** This is a work in progress.  This document is terse to convey intent
 that exists at the time it was written.  Things may change.
 
-The platform image is based on Debian with ZFS on Linux.
+The platform image is based on Debian utilizing ZFS on Linux.
+
+## Build Machine Requirements
+
+### TLDR
+
+1. Install [Debian 10 64-bit](https://www.debian.org/CD/http-ftp/) on a machine
+   (e.g. in VMware)
+2. Install [ZFS](#install-zfs)
+3. Create a zpool (warning - this will destroy the disk partition), e.g.
+```
+zpool create data /dev/sdb
+sudo touch /data/.system_pool
+```
+3. Install Git
+```
+apt install -y git
+```
+4. Build the [Image](#image-creation) - clone this repo and run the debian live
+   image builder:
+```
+    git clone -b linuxcn https://github.com/joyent/linux-live
+    cd linux-live
+    ./tools/debian-live
+```
+5. Copy the resulting image (iso or usb) out of the debian machine and use that
+   for the compute node boot (e.g. in a different VMware virtual machine, or on
+   real hardware).
 
 ## Image Contents
 
@@ -31,7 +58,7 @@ the image.  In general they fall into the following categories:
   * Fixing a very poor default setting for `mouse` in `vim` so that copy and
     paste will work.
   * Adding Triton paths to `$PATH`
-  * Use of dhcp when booted as not part of Triton
+  * Use of DHCP when booted as not part of Triton
   * SSH host key generation and preservation
   * Altering service dependencies so that service configuration stored in ZFS is
     respected.
@@ -58,7 +85,7 @@ stored as drop-in files in `/etc/systemd/network`, which is mounted from
 In general, the image creation process is:
 
 ```
-$ git checkout -b linuxcn https://github.com/joyent/linux-live
+$ git clone -b linuxcn https://github.com/joyent/linux-live
 $ cd linux-live
 $ sudo tools/debian-live
 ```
@@ -75,7 +102,7 @@ described below.
 The build machine should be running Debian 10 with zfs.
 
 The build process is self-hosting.  The first image needs to be created
-elsewhere - any Debian 10 box with the right packages well do.  Once your
+elsewhere - a Debian 10 (64 bit) box with the right packages well do.  Once your
 organization has the first image, it is probably easiest to go with the self
 hosting route.
 
@@ -129,7 +156,7 @@ Run the preflight check to see what other things you need.  If it tells you to
 install other packages, do the needful.
 
 ```
-$ git checkout -b linuxcn https://github.com/joyent/linux-live
+$ git clone -b linuxcn https://github.com/joyent/linux-live
 $ cd linux-live
 $ ./tools/debian-live preflight_check
 $ echo $?
