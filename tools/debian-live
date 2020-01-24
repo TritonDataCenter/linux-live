@@ -108,6 +108,7 @@ function unmount_children {
 function preflight_check {
 	local packages=(
 		build-essential		# to build src/sethostid
+		curl			# called by this script
 		debootstrap		# called by this script
 		dosfstools		# mkfs.vfat called by this script
 		gdisk			# called by this script
