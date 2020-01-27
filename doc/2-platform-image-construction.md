@@ -27,18 +27,18 @@ The platform image is based on Debian utilizing ZFS on Linux.
 zpool create data /dev/sdb
 sudo touch /data/.system_pool
 ```
-3. Install Git
+4. Install Git
 ```
 apt install -y git
 ```
-4. Build the [Image](#image-creation) - clone this repo and run the debian live
+5. Build the [Image](#image-creation) - clone this repo and run the debian live
    image builder:
 ```
     git clone -b linuxcn https://github.com/joyent/linux-live
     cd linux-live
     ./tools/debian-live
 ```
-5. Copy the resulting image (iso or usb) out of the debian machine and use that
+6. Copy the resulting image (iso or usb) out of the debian machine and use that
    for the compute node boot (e.g. in a different VMware virtual machine, or on
    real hardware).
 
