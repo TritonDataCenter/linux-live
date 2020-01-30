@@ -28,8 +28,8 @@ for path in "${keyfiles[@]}"; do
 
 	if [[ ${checked["$path"]:-no} == no ]]; then
 		if [[ ! -d $dir ]]; then
-			echo "$0: $dir does not exist" 1>&2
-			exit 1
+			echo "$0: $dir does not exist - ignoring" 1>&2
+			continue
 		fi
 
 		# Since we expect keys to be in the root of a mounted ZFS file
