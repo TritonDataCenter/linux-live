@@ -18,3 +18,8 @@ KernelCommandLine=triton.dhcp-all-nics
 
 [Network]
 DHCP=ipv4
+
+[DHCP]
+# Booter (the Triton DHCP server) will only accept DHCP requests that use a
+# specific vendor-class-identifier (must start with "SUNW" or "PXEClient").
+VendorClassIdentifier=PXEClient.Linux.x86_64
