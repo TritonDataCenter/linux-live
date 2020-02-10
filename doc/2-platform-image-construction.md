@@ -93,20 +93,27 @@ $ sudo tools/debian-live
 If all goes well, the final few lines will tell you what the name of the
 generated `.iso` and `.usb.gz` files are.
 
-Before you can do that, you probably need to configure your build machine, as
-described below.
+### Build machine installation
+
+The debian-live image can be created on an existing debian-live system.  This
+image is not redistributable due to the inclusion of zfs.  For this reason, the
+steps to creating your a PI build environment varies.
 
 
-## Build machine setup
-
-The build machine should be running Debian 10 with zfs.
+#### Build machine installation in Joyent
 
 The build process is self-hosting.  The first image needs to be created
 elsewhere - a Debian 10 (64 bit) box with the right packages well do.  Once your
 organization has the first image, it is probably easiest to go with the self
 hosting route.
 
-### `/bin/sh`
+#### Build machine installation outside Joyent
+
+If you are not part of Joyent and your organization has not yet built its own
+image, you will need to use a generic Debian 10 system to build the the first
+image.  The procedure is as follows.
+
+##### `/bin/sh`
 
 Debian uses `dash` as the Bourne shell.  It is less featureful than `bash`,
 which causes problems for some Joyent Makefiles.  To work around this:
@@ -128,29 +135,37 @@ SHELL = /bin/bash
 Note that `/bin/bash` works across various Linux distros and SmartOS.
 `/usr/bin/bash` does not exist on at least some Linux distros.
 
-### Install zfs
+##### Install zfs
 
 See https://wiki.debian.org/ZFS#Installation or some other "Getting Started"
 link found at https://zfsonlinux.org/.  For licensing reasons, the installation
 will need to build zfs, which will take several minutes.
 
-### Create a zpool
+### First boot build machine setup
 
-For now, the image creation script assumes that there is a pool named `data`
+Once you have a Debian instance with zfs, perform the following steps.
+
+#### Create a zpool
+
+For now, the image creation script assumes that there is a pool named `triton`
 where it can create images.
 
 ```
-sudo zpool create data /dev/vdb
+sudo zpool create triton /dev/vdb
 ```
 
 If you will be developing and testing agents on this box, you probably want to
 tell them that your pool is the system pool.
 
 ```
-sudo touch /data/.system_pool
+sudo touch /triton/.system_pool
 ```
 
-### Install other dependencies
+#### Install other dependencies
+
+Note: This step assumes you you have a non-root user with a home directory on
+a persistent file system (zfs, ext4, etc.) so that it survives reboots.  If
+running on debian-live, see [4-zfs.md](4-zfs.md) and look for `sysusers`.
 
 Run the preflight check to see what other things you need.  If it tells you to
 install other packages, do the needful.
@@ -162,6 +177,12 @@ $ ./tools/debian-live preflight_check
 $ echo $?
 0
 ```
+
+### Special steps for development on debian-live
+
+If you are developing on debian-live, the additional software that you install
+to build the image or other software will not survive reboot.  You will need to
+follow the advice given by `debian-live preflight_check` after each reboot.
 
 ## Advanced `debian-live` use and development
 
@@ -234,13 +255,13 @@ If I only want to roll back to before `install_proto` and re-run that step:
 
 ```
 $ zfs list -Ho name | grep debian-live | tail -1
-data/debian-live-20200105T222739Z
+triton/debian-live-20200105T222739Z
 
 $ sudo tools/debian-live -r 20200105T222739Z install_proto
 ```
 
 To inspect the outcome of that, you can `chroot
-/data/debian-live/20200105T222739Z/chroot` and poke around.  More commonly you
+/triton/debian-live/20200105T222739Z/chroot` and poke around.  More commonly you
 will want to run `install_proto` and all steps after it.  You can use `...` for
 that.
 
