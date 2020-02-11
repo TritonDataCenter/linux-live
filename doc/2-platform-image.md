@@ -8,7 +8,7 @@
     Copyright 2020 Joyent, Inc
 -->
 
-# Platform Image Construction
+# Platform Image
 
 **NOTICE:** This is a work in progress.  This document is terse to convey intent
 that exists at the time it was written.  Things may change.
@@ -80,7 +80,141 @@ can be mounted over them.  For instance, persistent network configuration is
 stored as drop-in files in `/etc/systemd/network`, which is mounted from
 `<system pool>/platform/etc/systemd/network`.
 
-## Image creation
+## Image Distribution
+
+XXX This is aspirational as of 2020-02-10.
+
+Linux ZFS binaries are not redistributable due to incompatibility between the
+GPL and CDDL.  Distribution of ZFS will be only via source code.  Each
+organization that uses ZFS will need to create their own ZFS binaries for each
+image.  This process will be automated.
+
+Each distributed platform image will have four key files:
+
+1. The kernel, `vmlinuz`.
+2. The initial ramdisk, `initrd.img`
+3. The platform root file system, `filesystem.squashfs`
+4. The platform build file system, `build.tgz`
+
+All of these files will be included in `platform.tgz`, with a hierarchy and
+auxiliary files that match those found in a SmartOS platform archive.
+
+### zfsbuilder service.
+
+The zfsbuilder service will run in an HVM instance.  An HVM instance is needed
+so that nested containers may be used in the build process.  In the future, we
+may allow builds to occur on lxc instances on Linux CNs, as nested containers
+are possible.
+
+A new trition service, zfsbuilder, will become aware of a new platform image
+import (XXX mechanism TBD) and will use the content of `build.tgz` to build
+ZFS binaries.  `build.tgz` is a container root file system that has
+all of the source code and dependencies required to build ZFS binaries that are
+appropriate for the associated platform image.
+
+The build will produce a file, `zfs-$platform.tar` containing the ZFS
+packages that need to be installed in the platform image.  This tar file should
+not include test packages or others that are not needed for typical operation.
+The test package(s) should be available to aid in development.
+
+The files will be made available via http from the zfsbuilder VM.
+
+## Booter Integration
+
+XXX This is aspirational as of 2020-02-10.
+
+### Platform Image Import
+
+The layout of a Linux platform.tgz file will be:
+
+```
+platform/
+platform/etc/
+platform/etc/version/
+platform/etc/version/platform
+platform/etc/version/os-release
+platform/etc/version/gitstatus
+platform/x86_64/vmlinuz
+platform/x86_64/initrd
+platform/x86_64/initrd.hash
+platform/x86_64/filesystem.squashfs
+platform/x86_64/filesystem.squashfs.hash
+platform/x86_64/filesystem.packages
+platform/x86_64/filesystem.manifest
+platform/x86_64/build.tgz
+platform/x86_64/build.tgz.hash
+platform/x86_64/build.tgz.packages
+platform/x86_64/build.tgz.manifest
+```
+
+The existing `sdcadm platform` command will be enhanced to support Linux
+platform images.
+
+When a Linux PI is imported, (`sdcadm platform`? `booter`?)  will notify the
+zfsbuilder service of its existence.  The zfsbuilder service will build the ZFS
+bits, as described above.
+
+### iPXE configuration
+
+When a Linux CN is configured in booter, the following files will be configured
+under `/tftboot`:
+
+* `menu.lst.01<MAC>`: XXX grub configuration, for a reason I don't understand.
+* `boot.ipxe.01<MAC>`: ipxe configuration
+* `bootfs/<MAC>/networking.json`: same as SmartOS
+
+`boot.ipxe01<MAC>` will resemble:
+
+```
+#!ipxe
+kernel /os/20200401T0123456Z/platform/x86_64/vmlinuz console=ttyS0 boot=live \
+  fetch=http:///os/20200401T0123456Z/platform/x86_64/filesystem.squashfs
+initrd /os/20200401T0123456Z/platform/x86_64/initrd
+module --name /packages.tar /zfs/20200401T0123456Z/packages.tar
+module --name /networking.json /bootfs/<MAC>/networking.json
+boot
+```
+
+In this example, it is anticipated that http://<booter-ip>/zfs is proxied
+to the appropriate URL on the zfsbuild instance.  This configuration requires
+that booter is configured to serve files via http, not tftp.
+
+**XXX for initial prototyping, zfs bits will be in `filesystem.squashfs` and
+perhaps `initrd`.  `packages.tar` will not be available and if `networking.json`
+is present it can be ignored.**
+
+### Common Boot Procedure
+
+The boot of a Linux CN via iPXE uses the following general procedure:
+
+1. ipxe downloads `/os/<platform-timestamp>/platform/x86_64/vmlinuz` as the
+   kernel.
+2. ipxe downloads `/os/<platform-timestamp>/platform/x86_64/initrd.img` as the
+   initial ramdisk.
+2. ipxe downloads `/zfs/<platform-timestamp>/packages` as `/packages.tar`.
+3. ipxe downloads `/bootfs/<MAC>/network.json` as `/networking.json`
+4. The kernel starts, loads `initrd.img` into a initramfs and mounts at `/`.
+   `/networking.json` and `/packages.tar` are visible.
+5. The live-boot scripts download `filesystem.squashfs` and creates the required
+   overlay mounts to make it writable.
+6. The zfs packages are installed in the soon-to-be root file system, the zfs
+   kernel modules are loaded, and any existing pool is imported and zfs file
+   systems critical to early boot are mounted.
+7. `/networking.json` is moved to a location that will be accessible in the new
+   root.  This is at a path that a systemd generator will find it to generate
+   the appropriate networking configuration under `/run/systemd`.
+8. live-boot pivots root and transfers control to systemd.
+
+### Boot of a new CN
+
+A new CN will boot the default image, which may be a SmartOS or a Linux image.
+`sdc-server setup` may specify which image the server is to run.  If the wrong
+OS is booted, booter will be updated to cause the next boot to boot from the
+appropriate OS and trigger a reboot.  On this subsequent boot, the CN will be
+set up.
+
+
+## Platform Image creation
 
 In general, the image creation process is:
 
