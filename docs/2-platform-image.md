@@ -183,6 +183,109 @@ that booter is configured to serve files via http, not tftp.
 perhaps `initrd`.  `packages.tar` will not be available and if `networking.json`
 is present it can be ignored.**
 
+
+### ISC DHCP server configuration
+
+As a stand-in until booter is ready, ISC DHCP server can be used on a network
+that doesn't already have another DHCP server.  The following configuration will
+serve up dynamic addresses on the 192.168.42.0/24 network, assuming that the
+server it is running on has an interface with address 192.168.42.1 and is
+running a web server, such as is described in the nginx configuration that
+follows this section.
+
+```
+apt install -y isc-dhcp-server
+```
+
+In `/etc/dhcp/dhcpd.conf`:
+
+```
+default-lease-time 600;
+max-lease-time 7200;
+ddns-update-style none;
+authoritative;
+# https://ipxe.org/howto/dhcpd
+option space ipxe;
+option ipxe-encap-opts code 175 = encapsulate ipxe;
+option ipxe.priority code 1 = signed integer 8;
+option ipxe.keep-san code 8 = unsigned integer 8;
+option ipxe.skip-san-boot code 9 = unsigned integer 8;
+option ipxe.syslogs code 85 = string;
+option ipxe.cert code 91 = string;
+option ipxe.privkey code 92 = string;
+option ipxe.crosscert code 93 = string;
+option ipxe.no-pxedhcp code 176 = unsigned integer 8;
+option ipxe.bus-id code 177 = string;
+option ipxe.san-filename code 188 = string;
+option ipxe.bios-drive code 189 = unsigned integer 8;
+option ipxe.username code 190 = string;
+option ipxe.password code 191 = string;
+option ipxe.reverse-username code 192 = string;
+option ipxe.reverse-password code 193 = string;
+option ipxe.version code 235 = string;
+option iscsi-initiator-iqn code 203 = string;
+# Feature indicators
+option ipxe.pxeext code 16 = unsigned integer 8;
+option ipxe.iscsi code 17 = unsigned integer 8;
+option ipxe.aoe code 18 = unsigned integer 8;
+option ipxe.http code 19 = unsigned integer 8;
+option ipxe.https code 20 = unsigned integer 8;
+option ipxe.tftp code 21 = unsigned integer 8;
+option ipxe.ftp code 22 = unsigned integer 8;
+option ipxe.dns code 23 = unsigned integer 8;
+option ipxe.bzimage code 24 = unsigned integer 8;
+option ipxe.multiboot code 25 = unsigned integer 8;
+option ipxe.slam code 26 = unsigned integer 8;
+option ipxe.srp code 27 = unsigned integer 8;
+option ipxe.nbi code 32 = unsigned integer 8;
+option ipxe.pxe code 33 = unsigned integer 8;
+option ipxe.elf code 34 = unsigned integer 8;
+option ipxe.comboot code 35 = unsigned integer 8;
+option ipxe.efi code 36 = unsigned integer 8;
+option ipxe.fcoe code 37 = unsigned integer 8;
+option ipxe.vlan code 38 = unsigned integer 8;
+option ipxe.menu code 39 = unsigned integer 8;
+option ipxe.sdi code 40 = unsigned integer 8;
+option ipxe.nfs code 41 = unsigned integer 8;
+
+subnet 192.168.42.0 netmask 255.255.255.0 {
+	option ipxe.no-pxedhcp 1;
+	range 192.168.42.100 192.168.42.200;
+	filename "http://192.168.42.1/boot.ipxe";
+}
+```
+
+After the configuration is in place:
+
+```
+systemctl enable --now isc-dhcp-server
+```
+
+### nginx configuration
+
+The following is only needed until booter is updated.  This configuration can be
+used on a Debian 10 machine that is on the same network on some other machine
+you wish to PXE boot.
+
+Install nginx
+
+```
+apt install -y nginx
+```
+
+Remove `/etc/nginx/sites-enabled/default`.
+
+Add `/etc/nginx/sites-enabled/booter` with the following content:
+
+```
+server {
+	listen	80;
+	location / {
+		root /tftpboot;
+	}
+}
+```
+
 ### Common Boot Procedure
 
 The boot of a Linux CN via iPXE uses the following general procedure:
