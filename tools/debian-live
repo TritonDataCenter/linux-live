@@ -37,7 +37,7 @@ node_manta_dir=/Joyent_Dev/public/bits/linuxcn
 node_archive=sdcnode-v8.16.1-linux-63d6e664-3f1f-11e8-aef6-a3120cf8dd9d-linuxcn-20191231T144917Z-gdd5749b.tgz
 
 ntp=0.debian.pool.ntp.org
-zfs_ver=0.8.2		# XXX really master until log spacemap is in a release
+zfs_ver=0.8.3
 
 # From https://willhaley.com/blog/custom-debian-live-environment/
 packages=(linux-image-amd64 live-boot systemd-sysv)
@@ -77,6 +77,12 @@ function cleanup {
 		(( i-- ))
 		eval ${clean[i]}
 	done
+
+	if [[ $clean_exit != true ]]; then
+		echo "ERROR: Build failed"
+		echo "Build release: $release"
+		echo "Build directory: $top"
+	fi
 }
 trap cleanup EXIT
 
@@ -185,11 +191,11 @@ function install_live {
 	    "${apt_args[@]}" "${packages[@]}" "${zfs_build_packages[@]}"
 }
 
+# XXX This needs to be reworked so that the zfs binaries are not part of the
+# squashfs or initrd files.  They can be built, but the artifacts should be
+# stored in a way that they can be excluded from distributed images.
 function build_zfs {
-	clean+=(unmount_children)
-	mount -t proc proc $root/proc
-
-	chroot "$root" bash -c '
+	chroot "$root" env zfs_ver=$zfs_ver bash -c '
 	    PS4="BUILD_ZFS: "
 	    set -xeuo pipefail
 
@@ -197,18 +203,34 @@ function build_zfs {
 	    export LC_ALL=C
 
 	    rm -rf zfs
-	    git clone https://github.com/zfsonlinux/zfs.git
+	    git clone -b zfs-$zfs_ver https://github.com/zfsonlinux/zfs.git
 	    cd zfs
 	    ./autogen.sh
-	    ./configure
+	    ./configure --with-linux=$(echo /usr/src/linux-headers-*-common) \
+	        --with-linux-obj=$(echo /usr/src/linux-headers-*-amd64) \
+	'
+
+	zfs snapshot $dataset@for-build-tgz
+
+	clean+=(unmount_children)
+	mount -t proc proc $root/proc
+	chroot "$root" bash -c '
+	    PS4="BUILD_ZFS: "
+	    set -xeuo pipefail
+
+	    cd zfs
 	    make -j1 pkg-utils deb-kmod
+	    tar cvf /all-packages.tar *.deb
 	    rm kmod-zfs-devel*.deb zfs-test*.deb
+	    tar cvf /packages.tar *.deb
 	    for file in *.deb; do gdebi -q --non-interactive $file; done
 	    cd ..
 	    rm -rf zfs
 	'
-
 	umount $root/proc
+
+	mv $root/all-packages.tar $root/packages.tar $scratch
+
 }
 
 # In the previous "apt install" we built the zfs kernel modules, which brought
@@ -280,11 +302,13 @@ function install_proto {
 function postinstall {
 	# Heavily inspired by mi-debian-hvm/debian-10/late-command
 	chroot "$root" env release="$release" motd="$motd" product="$product" \
+	    relase="$release" \
 	    bash -c '
 		PS4="POSTINSTALL: "
 		set -xeuo pipefail
 
 		echo debian-live-$release >/etc/hostname
+		echo "TRITON_RELEASE=\"$release\"" >> /etc/os-release
 
 		apt-get autoremove --purge -y
 		apt-get clean
@@ -318,15 +342,16 @@ function postinstall {
 		# As above, clean cruft here.
 		rm -f /etc/sudoers.d/*
 
+		depmod -a $(basename /lib/modules/*)
 		update-initramfs -u
 	    '
 }
 
 function prepare_archive_bits {
-	mkdir -p $scratch $image/live
+	mkdir -p $image/live
 	mksquashfs $root $image/live/filesystem.squashfs -noappend -e boot
-	cp $root/boot/vmlinuz-* $image/vmlinuz
-	cp $root/boot/initrd.img-* $image/initrd
+	cp $root/vmlinuz $image/vmlinuz
+	cp $root/initrd.img $image/initrd
 
 	cat <<EOF >$scratch/grub.cfg
 search --set=root --file /JOYENT_DEBIAN_LIVE
@@ -352,6 +377,43 @@ menuentry "Joyent Debian Live $release without DHCP" {
 }
 EOF
 	echo $release > $image/JOYENT_DEBIAN_LIVE
+}
+
+function create_tgz {
+	local dir=$scratch/platform-$release
+
+	mkdir -p "$dir/etc/version"
+	echo "$release" > $dir/etc/version/platform
+	cp $root/etc/os-release $dir/etc/version/os-release
+	cat > $dir/etc/version/gitstatus <<EOF
+[
+    {
+        "repo": "linux-live",
+        "branch": "$(git branch | grep "^* " | cut -d ' ' -f2-)",
+        "commit_date": "$(git log -n 1 --pretty=format:%ct HEAD)",
+	"rev": "$(git rev-parse HEAD)",
+	"upstream_master_commit": "$(git rev-parse origin/master)",
+        "url": "$(git config remote.origin.url)"
+    }
+]
+EOF
+	# When debugging problems it can be handy to know what is changed that
+	# has not be committed to the upstream master branch.
+	mkdir -p "$dir/etc/patches"
+	git format-patch -o "$dir/etc/patches" origin/master
+	local out=$(git diff HEAD)
+	[[ -n "$out" ]] && echo "$out" > "$dir/etc/patches/9999-uncommitted"
+	out=$(git status 2>&1)
+	[[ -n "$out" ]] && echo "$out" > "$dir/etc/patches/git-status"
+
+	local dir_m="$dir/platform/$(uname -m)"
+	mkdir -p "$dir_m"
+	cp $root/vmlinuz $dir_m/vmlinuz
+	cp $root/initrd.img $dir_m/initrd
+	cp $image/live/filesystem.squashfs $dir_m/filesystem.squashfs
+
+	(cd "$scratch" &&
+	    tar cf - platform-$release | pigz > $top/platform-$release.tgz)
 }
 
 function create_iso {
@@ -542,6 +604,7 @@ all_steps=(preflight_check
     install_proto
     postinstall
     prepare_archive_bits
+    create_tgz
     create_iso
     create_usb)
 dataset=
@@ -620,6 +683,7 @@ top=$(zfs list -Ho mountpoint "$dataset")
 root=$top/chroot
 image=$top/image
 scratch=$top/scratch
+mkdir -p "$scratch"
 repo=$(git rev-parse --show-toplevel)
 
 motd=$'
@@ -647,4 +711,4 @@ done
 clean_exit=true
 set +x
 
-ls -lh $top/*.iso $top/*.usb.gz 2>/dev/null || :
+ls -lh $top/*.iso $top/*.usb.gz $top/*.tgz 2>/dev/null || :
