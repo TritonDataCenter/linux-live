@@ -1,0 +1,36 @@
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+
+#
+# Copyright 2020 Joyent, Inc.
+#
+
+#
+# This file is delivered as part of the Triton Platform Image.
+#
+# Linux generates the hostid based upon the IP address of the system.  If the IP
+# address changes (e.g. DHCP lease expires while it is down) this can cause ZFS
+# pools to not be imported automatically.  This service should run before the
+# any ZFS pool is imported to set the hostid to a value.
+#
+
+[Unit]
+Description=Set hostid based on system uuid
+Documentation=https://github.com/joyent/linux-live
+DefaultDependencies=no
+Before=zfs-import-cache.service
+Before=zfs-import-scan.service
+Before=zfs-import.service
+
+[Service]
+ExecStart=/usr/triton/bin/sethostid
+Type=oneshot
+RemainAfterExit=false
+
+[Install]
+RequiredBy=zfs-import-cache.service
+RequiredBy=zfs-import-scan.service
+RequiredBy=zfs-import.service
