@@ -88,7 +88,20 @@ mounted over the root file system, just set `canmount=noauto`.
 
 # zfs create -o canmount=noauto triton/system/var
 # zfs create triton/system/var/imgadm
-# zfs create triton/system/var/sshd
+# zfs create triton/system/var/ssh
+```
+
+As a single script:
+
+```
+zfs create -o canmount=noauto -o mountpoint=/ triton/system
+zfs create triton/system/opt
+zfs create -o canmount=noauto triton/system/etc
+zfs create -o canmount=noauto triton/system/etc/systemd
+zfs create triton/system/etc/systemd/network
+zfs create -o canmount=noauto triton/system/var
+zfs create triton/system/var/imgadm
+zfs create triton/system/var/ssh
 ```
 
 ### Standard datasets and mount points
