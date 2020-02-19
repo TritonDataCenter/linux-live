@@ -30,7 +30,7 @@ Notice that the commands (sections 1 and 8) tend to be `systemd` **dash**
 * [systemd(1)](https://www.freedesktop.org/software/systemd/man/systemd.html)
 * [systemctl(1)](https://www.freedesktop.org/software/systemd/man/systemctl.html#)
 * [systemd-nspawn(1)](https://www.freedesktop.org/software/systemd/man/systemd-nspawn.html)
-* [systmed.service(5)](https://www.freedesktop.org/software/systemd/man/systemd.service.html)
+* [systemd.service(5)](https://www.freedesktop.org/software/systemd/man/systemd.service.html)
 * [systemd.unit(5)](https://www.freedesktop.org/software/systemd/man/systemd.unit.html)
 * [systemd.nspawn(5)](https://www.freedesktop.org/software/systemd/man/systemd.nspawn.html)
 * [systemd.syntax(5)](https://www.freedesktop.org/software/systemd/man/systemd.syntax.html)
@@ -96,7 +96,7 @@ with a symbolic link in `/etc/systemd/network`:
 ```
 
 To add static configuration of a single NIC, we add
-`/etc/systemd/network/10-admin.network`:
+`/etc/systemd/network/10-external0.network`:
 
 ```
 [Match]
@@ -110,51 +110,51 @@ DNS=192.168.1.1
 
 ### Rename network links
 
-Renaming a network link is as simple as dropping a `.link` file in
-`/etc/systemd/network` and nudging systemd or rebooting.
+Renaming a network link should be as simple as dropping a `.link` file in
+`/etc/systemd/network`.  On the next reboot the link should be renamed
+automatically.  If adding a link on the fly, it is necessary to nudge systemd.
+As a reminder `/etc/systemd/network` is mounted from the system zpool.
 
-Per `systemd.link(5)`:
-
-> Network link configuration is performed by the net_setup_link udev builtin.
-
-As it turns out, `systemd-udevd` is one of those services that really does need
-to start early.
-
-This example `.link` file can be used to rename a link to a name that makes it
-suitable for including in other unit files and drop-in files.  As a reminder,
-this directory is mounted from the system zpool.
+A `.link` file like the following can be used to rename a link to a name that
+makes it suitable for including in other unit files and drop-in files.
 
 ```
-# cat /etc/systemd/network/00-admin0.link
+# cat /etc/systemd/network/10-external0.link
 [Match]
 MACAddress=52:54:00:ab:bf:60
 
 [Link]
-Name=admin0
+Name=external0
 ```
 
-To get this to be recognized, we can reboot or nudge systemd.  Nudging systemd
-is a subset of:
+XXX: At one point, I could not get these drop-in files to be recognized unless I
+added `net.ifnames=0` to the kernel command line.  As I started to document that
+requirement here, I found I no longer needed to do that.  I don't know if I had
+a subtle bug in a `.link` file or if there is some race condition that I was
+consistently hitting and am now consistently not hitting.
 
-- Run `systemctl daemon-reload` to let systemd that a new drop-in file is
-  present.  (XXX not sure this is needed)
-- Run `systemctl restart systemd-udevd` to let udevd know that it has some new
-  configuration.
-- Run `udevadm -s net -c add`.  While it is tempting to add the `-w` option to
-  wait for it to complete, there's a bug in systemd (XXX-linuxcn file it) in
-  that the wait never completes because it seems to need to wait on the renamed
-  path, not the original path.  Instead, if you need to ensure that the async
-  `udevd` work is done, run `udevadm settle`.
-
-With the link renamed, it can be configured.  If the link doesn't need an address
-in the host, the link will remain down.  This causes problems for macvlan
-instances in containers, as they cannot use their macvlan instances while the
-lower link is down.
+If a reboot is not acceptable, the link rename can be forced without a reboot
+with:
 
 ```
-# cat /etc/systemd/network/admin0.network
+udevadm trigger -s net -c add
+udevadm settle
+```
+
+While it is tempting to add the `-w` option to wait for it to complete, there's
+bug in systemd (XXX reproduce then file it) in that the wait never completes
+because it seems to need to wait on the renamed path, not the original path.
+To ensure that the rename has completed, we run `udevadm settle`.
+
+With the link renamed, it can be configured.  If the link doesn't need an
+address in the host, the link will remain down.  This causes problems for
+macvlan instances in containers, as they cannot use their macvlan instances
+while the lower link is down.
+
+```
+# cat /etc/systemd/network/external0.network
 [Match]
-Name=admin0
+Name=external0
 
 [Network]
 # XXX-linuxcn: hack to bring lower-link up.
@@ -166,7 +166,7 @@ done with `X-` prefixes.
 
 ```
 [X-Triton]
-X-NICTag=admin
+X-NICTag=external
 X-Customer=00000000-0000-0000-0000-000000000000
 ```
 
@@ -202,7 +202,7 @@ PrivateUsers=auto
 [Network]
 Private=yes
 # A symbolic lower-link name makes this much clearer than enp7s0 would be
-MACVLAN=admin0
+MACVLAN=external0
 EOF
 # systemctl start triton-instance@deb9
 ```
