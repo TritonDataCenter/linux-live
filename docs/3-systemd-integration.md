@@ -58,7 +58,17 @@ delivered under `/usr/lib/systemd`.  This ensures that most directories under
 `/etc/systemd` are empty, allowing ZFS file systems to be mounted on them.
 
 
-### Enable DHCP on all NICs
+### Networking
+
+The examples below describe static configuration in `/etc/systemd/network`.
+This is a place-holder until dynamic configuration from `networking.json` is
+enabled.  As described in
+[linux-live#12](https://github.com/joyent/linux-live/issues/12), the networking
+configuration provided by booter in `networking.json` should be transformed into
+configuration in `/run/systemd` using a
+[generator](https://www.freedesktop.org/software/systemd/man/systemd.generator.html).
+
+#### Enable DHCP on all NICs
 
 During development, it is handy to have NICs configured by DHCP.  Except when
 it's not.  `/usr/lib/systemd/network/99-dhcp-all-nics.network` contains:
@@ -108,12 +118,12 @@ Gateway=192.168.1.1
 DNS=192.168.1.1
 ```
 
-### Rename network links
+#### Rename network links
 
 Renaming a network link should be as simple as dropping a `.link` file in
 `/etc/systemd/network`.  On the next reboot the link should be renamed
 automatically.  If adding a link on the fly, it is necessary to nudge systemd.
-As a reminder `/etc/systemd/network` is mounted from the system zpool.
+As a reminder `/etc/systemd/network` is mounted from the system ZFS pool.
 
 A `.link` file like the following can be used to rename a link to a name that
 makes it suitable for including in other unit files and drop-in files.
@@ -148,7 +158,7 @@ To ensure that the rename has completed, we run `udevadm settle`.
 
 With the link renamed, it can be configured.  If the link doesn't need an
 address in the host, the link will remain down.  This causes problems for
-macvlan instances in containers, as they cannot use their macvlan instances
+MACVLAN instances in containers, as they cannot use their MACVLAN instances
 while the lower link is down.
 
 ```
@@ -170,41 +180,10 @@ X-NICTag=external
 X-Customer=00000000-0000-0000-0000-000000000000
 ```
 
-### Machine template
+### Machines with nspawn
 
-The following can be used to create a template service that allows ephemeral
-instances to be created.  This file should be stored as
-`/usr/lib/systemd/system/triton-instance@.service`.
+The `systemd-nspawn@.service` service will be used for starting and managing
+machines.
 
-```
-[Unit]
-Description=nspawn-1
-
-[Service]
-ExecStart=/usr/bin/systemd-nspawn -b --machine=%i \
-	--directory=/var/lib/machines/%i/root
-
-[Install]
-Also=dbus.service
-```
-
-Now you can:
-
-```
-# imgadm import 63d6e664-3f1f-11e8-aef6-a3120cf8dd9d
-# zfs clone -o mountpoint=/var/lib/machines/deb9 \
-      triton/63d6e664-3f1f-11e8-aef6-a3120cf8dd9d@final triton/deb9
-# cat > /var/lib/machines/deb9.nspawn <<EOF
-[Exec]
-Boot=on
-PrivateUsers=auto
-
-[Network]
-Private=yes
-# A symbolic lower-link name makes this much clearer than enp7s0 would be
-MACVLAN=external0
-EOF
-# systemctl start triton-instance@deb9
-```
-
-More details will come in a future document.
+More details are in [RFD
+180](https://github.com/joyent/rfd/blob/master/rfd/0180/README.md).
