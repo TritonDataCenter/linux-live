@@ -48,6 +48,82 @@ being said, it is comforting to know that it is possible.  See
 [systemd-system.conf](https://www.freedesktop.org/software/systemd/man/systemd-system.conf.html)
 and [systemd](https://www.freedesktop.org/software/systemd/man/systemd.html).
 
+
+## How linux-live will configure systemd
+
+As described in
+[systemd.unit](https://www.freedesktop.org/software/systemd/man/systemd.unit.html),
+a service's configuration is synthesized from:
+
+- Template service files: `<service>@.service` files in the service directories
+- Service files: `<service>[@<instance>].service` files in the service directories
+- Drop in files: `<service>[@[<instance>]].service.d/*.conf` files in the
+  service directories.
+
+Where the service directories are:
+
+- `/lib/systemd/system`: Part of the platform image. Typically, these files are
+  delivered by the distribution's packages.
+- `/run/systemd/system`: Dynamically generated at run-time and not persisted
+  across reboots.
+- `/etc/systemd/system`: Under the administrator's control.  This is mounted
+  from the system ZFS pool very early in boot.
+
+### Best practices
+
+1. Do not directly replace any file delivered by the distribution.  That is, do
+   not add a file under [`proto`](../proto) that will replace
+   `/usr/lib/systemd/system/*.service`.
+2. If a service needs to be customized for the platform image, use a drop-in
+   file per need. Include comments explaining why it is needed so that future
+   developers may understand when it is no longer appropriate.  Consider filing
+   a JIRA ticket or github issue calling for the removal of the customization if
+   it is intended to work around a bug in the distribution's software.
+3. If a service is dependent on runtime information that is obtained from some
+   Triton service, consider using a generator that defines the service under
+   `/run/systemd/system`.
+4. Service definitions under `/etc/systemd/system` should be rare.  Services
+   configured in `/etc/systemd/system` are almost certainly configured by a
+   Triton agent.  This implies that as services and platform images evolve, the
+   future versions of Triton agents need to know how to migrate any
+   configuration between arbitrary configuration versions.
+
+### Example: Fixing a broken service
+
+As described in [linux-live#10](https://github.com/joyent/linux-live/issues/10),
+the `systemd-nspawn@.service` template service requires a workaround to allow
+container reboots to work.
+
+Rather than replacing `/lib/systemd/systemd-nspawn@.service` as described in
+some workarounds, a drop-in configuration is added as
+`/usr/lib/systemd/system/systemd-nspawn@.service.d/10-reboot-workaround.conf`.
+It contains:
+
+```
+#
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+
+#
+# Copyright 2020 Joyent, Inc.
+#
+
+#
+# Remove --keep-unit from the command line so that the container can restart.
+# https://github.com/systemd/systemd/issues/2809
+#
+
+[Service]
+# First clear the existing ExecStart, else we end up with multiple commands.
+ExecStart=
+# Now define the new one
+ExecStart=/usr/bin/systemd-nspawn --quiet --boot --link-journal=try-guest \
+    --network-veth -U --settings=override --machine=%i
+```
+
 ## Platform image services
 
 The following subsections describe the services that are part of the platform
