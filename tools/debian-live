@@ -626,7 +626,7 @@ if (( $# == 0 )); then
 else
 	steps=()
 	prev=
-	for step in $@; do
+	for step in preflight_check $@; do
 		if [[ $step != ... ]]; then
 			steps+=($step)
 			prev=$step
