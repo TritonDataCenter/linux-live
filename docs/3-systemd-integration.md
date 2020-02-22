@@ -55,12 +55,12 @@ that have been customized.
 
 All systemd unit and drop-in files that are part of the platform image are
 delivered under `/usr/lib/systemd`.  This ensures that most directories under
-`/etc/systemd` are empty, allowing zfs file systems to be mounted on them.
+`/etc/systemd` are empty, allowing ZFS file systems to be mounted on them.
 
 
 ### Enable DHCP on all NICs
 
-During development, it is handy to have NICs configured by dhcp.  Except when
+During development, it is handy to have NICs configured by DHCP.  Except when
 it's not.  `/usr/lib/systemd/network/99-dhcp-all-nics.network` contains:
 
 ```
@@ -77,7 +77,7 @@ the default grub entry by [debian-live](../tools/debian-live).  An alternate
 grub entry exists to disable that feature, leaving it to the admin to configure
 NICs however they want.
 
-It is anticipated that enabling dhcp on all NICs is a poor choice in many cases
+It is anticipated that enabling DHCP on all NICs is a poor choice in many cases
 and we need to have a way to override it without selecting a non-default boot
 entry each time.
 
@@ -95,7 +95,7 @@ with a symbolic link in `/etc/systemd/network`:
 # ln -s /dev/null /etc/systemd/network/99-dhcp-all-nics.network
 ```
 
-To add static configuration of a single nic, we add
+To add static configuration of a single NIC, we add
 `/etc/systemd/network/10-admin.network`:
 
 ```
