@@ -39,7 +39,7 @@ Notice that the commands (sections 1 and 8) tend to be `systemd` **dash**
 
 The above documentation and the various links you will be inspired to follow
 within that documentation should be matched with at least half a pot of coffee.
-There's a lot there, and it is only a fracton of the available documentation.
+There's a lot there, and it is only a fraction of the available documentation.
 systemd is easier to love (use, tolerate?) with the proper investment in
 learning about how it works.
 
@@ -146,7 +146,7 @@ is a subset of:
   path, not the original path.  Instead, if you need to ensure that the async
   `udevd` work is done, run `udevadm settle`.
 
-The the link renamed, it can be configured.  If the link doesn't need an address
+With the link renamed, it can be configured.  If the link doesn't need an address
 in the host, the link will remain down.  This causes problems for macvlan
 instances in containers, as they cannot use their macvlan instances while the
 lower link is down.
