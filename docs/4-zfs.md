@@ -116,7 +116,7 @@ zfs create triton/system/var/ssh
 | /triton              | triton                         | Default mount point for pool.  Maybe we shouldn't mount it? |
 | /var/imgadm          | triton/platform/var/imgadm     | Image manifests and such. |
 | /var/lib/machines/\* | triton/:instance\_uuid         | /var/lib/machines helps with [machinectl] integration |
-| /var/ssh             | triton/platform/var/ssh        | ssh keys |
+| /var/ssh             | triton/platform/var/ssh        | SSH keys |
 
 ## Boot integration
 
@@ -159,11 +159,11 @@ this is ever to host headnode services, build images, etc., that will likely be
 important.
 
 This is likely to be a significant amount of work, potentially adding a new
-namespace for zfs.
+namespace for ZFS.
 
 ### ZFS security
 
-We need to be sure that container users are not able to muck with zfs or see
+We need to be sure that container users are not able to muck with ZFS or see
 datasets not mounted in the container or delegated to it.  It may be that we
 just need to be sure that `/dev/zfs` does not appear in containers and that
 containers are not able to create new device nodes.

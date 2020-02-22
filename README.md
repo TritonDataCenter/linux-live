@@ -1,6 +1,6 @@
 This repo will hold the things that go into making the Linux platform image.
 
-[debian-live](tools/debian-live) creates an iso image that contains debian with
+[debian-live](tools/debian-live) creates an ISO image that contains Debian with
 ZFS 0.8.3.  While this automation can be distributed, the output of it cannot
 due to GPL/CDDL issues.
 

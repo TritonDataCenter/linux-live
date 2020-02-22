@@ -38,7 +38,7 @@ apt install -y git
     cd linux-live
     ./tools/debian-live
 ```
-6. Copy the resulting image (iso or usb) out of the debian machine and use that
+6. Copy the resulting image (ISO or USB) out of the Debian machine and use that
    for the compute node boot (e.g. in a different VMware virtual machine, or on
    real hardware).
 
@@ -62,7 +62,7 @@ the image.  In general they fall into the following categories:
   * SSH host key generation and preservation
   * Altering service dependencies so that service configuration stored in ZFS is
     respected.
-  * Generate the same hostid every time to keep zfs happy.
+  * Generate the same hostid every time to keep ZFS happy.
   * Joyent utilities that SmartOS admins expect to have.  This includes manta
     client utilities (`mget` and friends) and `json`.
 
@@ -117,7 +117,7 @@ packages that need to be installed in the platform image.  This tar file should
 not include test packages or others that are not needed for typical operation.
 The test package(s) should be available to aid in development.
 
-The files will be made available via http from the zfsbuilder VM.
+The files will be made available via HTTP from the zfsbuilder VM.
 
 ## Booter Integration
 
@@ -177,9 +177,9 @@ boot
 
 In this example, it is anticipated that http://<booter-ip>/zfs is proxied
 to the appropriate URL on the zfsbuild instance.  This configuration requires
-that booter is configured to serve files via http, not tftp.
+that booter is configured to serve files via HTTP, not TFTP.
 
-**XXX for initial prototyping, zfs bits will be in `filesystem.squashfs` and
+**XXX for initial prototyping, ZFS bits will be in `filesystem.squashfs` and
 perhaps `initrd`.  `packages.tar` will not be available and if `networking.json`
 is present it can be ignored.**
 
@@ -300,8 +300,8 @@ The boot of a Linux CN via iPXE uses the following general procedure:
    `/networking.json` and `/packages.tar` are visible.
 5. The live-boot scripts download `filesystem.squashfs` and creates the required
    overlay mounts to make it writable.
-6. The zfs packages are installed in the soon-to-be root file system, the zfs
-   kernel modules are loaded, and any existing pool is imported and zfs file
+6. The ZFS packages are installed in the soon-to-be root file system, the ZFS
+   kernel modules are loaded, and any existing pool is imported and ZFS file
    systems critical to early boot are mounted.
 7. `/networking.json` is moved to a location that will be accessible in the new
    root.  This is at a path that a systemd generator will find it to generate
@@ -333,7 +333,7 @@ generated `.iso` and `.usb.gz` files are.
 ### Build machine installation
 
 The debian-live image can be created on an existing debian-live system.  This
-image is not redistributable due to the inclusion of zfs.  For this reason, the
+image is not redistributable due to the inclusion of ZFS.  For this reason, the
 steps to creating your a PI build environment varies.
 
 
@@ -372,15 +372,15 @@ SHELL = /bin/bash
 Note that `/bin/bash` works across various Linux distros and SmartOS.
 `/usr/bin/bash` does not exist on at least some Linux distros.
 
-##### Install zfs
+##### Install ZFS
 
 See https://wiki.debian.org/ZFS#Installation or some other "Getting Started"
 link found at https://zfsonlinux.org/.  For licensing reasons, the installation
-will need to build zfs, which will take several minutes.
+will need to build ZFS, which will take several minutes.
 
 ### First boot build machine setup
 
-Once you have a Debian instance with zfs, perform the following steps.
+Once you have a Debian instance with ZFS, perform the following steps.
 
 #### Create a zpool
 
@@ -401,7 +401,7 @@ sudo touch /triton/.system_pool
 #### Install other dependencies
 
 Note: This step assumes you you have a non-root user with a home directory on
-a persistent file system (zfs, ext4, etc.) so that it survives reboots.  If
+a persistent file system (ZFS, ext4, etc.) so that it survives reboots.  If
 running on debian-live, see [4-zfs.md](4-zfs.md) and look for `sysusers`.
 
 Run the preflight check to see what other things you need.  If it tells you to
@@ -455,7 +455,7 @@ $ sudo tools/debian-live
 
 That's great when things will be smooth sailing from start to finish.  However,
 some of the early steps take several minutes to complete.  When tweaking files
-in the `proto` directory, it is quite annoying to have to wait for a zfs build
+in the `proto` directory, it is quite annoying to have to wait for a ZFS build
 to fix a typo in a file.  For this reason, the build can be rolled back to the
 beginning of any stage so that stage (and presumably others) can be executed.
 
