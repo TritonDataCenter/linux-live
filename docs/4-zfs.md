@@ -71,8 +71,8 @@ The top-level is created as:
 # zfs create -o canmount=noauto -o mountpoint=/ triton/system
 ```
 
-Now, datasets under that dataset automaticlaly get the right mountpoint.  For
-example, this will creaete the file system that gets mounted at `/opt`.
+Now, datasets under that dataset automatically get the right mountpoint.  For
+example, this will create the file system that gets mounted at `/opt`.
 
 ```
 # zfs create triton/system/opt

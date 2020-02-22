@@ -11,7 +11,7 @@
 #
 
 #
-# This is an initial crude hack that generates a debian live image that includes
+# This is an initial crude hack that generates a debian-live image that includes
 # zfs.  Thanks to https://willhaley.com/blog/custom-debian-live-environment/ for
 # making this problem easily approachable.
 #
@@ -448,7 +448,7 @@ function create_iso {
 	    /EFI/efiboot.img=$scratch/efiboot.img
 }
 
-# Creates a USB disk that should be bootable with bios or uefi. The parition
+# Creates a USB disk that should be bootable with bios or uefi. The partition
 # containing the image is over sized by about 20% for metadata and a bit of
 # breathing room.  Those that want to store more stuff on it can grow the
 # partition and file system to use the available space.
@@ -568,13 +568,13 @@ function usage {
 	echo ""
 	echo "  -h  Show this message."
 	echo "  -d  Build within specified dataset."
-	echo "  -m  Install packages that are needed for succesful execution."
+	echo "  -m  Install packages that are needed for successful execution."
 	echo "      Without this, preflight_check will provide an error message"
 	echo "      and exit if any required packages are not installed."
 	echo "  -r  Use this release.  Most useful when retrying a failed image"
 	echo "      build after fixing something."
 	echo ""
-	echo "Create a new iamge from scratch"
+	echo "Create a new image from scratch"
 	echo "    debian-live"
 	echo ""
 	echo "Run just the specified steps on an existing image build"
