@@ -40,7 +40,7 @@ are used in SmartOS.  A quick mapping is as follows:
 | `zoneadm -z $i shutdown` | `systemctl stop triton-isnstance@$i` or `machinectl stop $i` |   |
 | `zlogin $i`              | `machinectl login $i` | This likely requires authentication      |
 
-Of course, these will all be wrapped in Triton APIs and familar CLIs that call
+Of course, these will all be wrapped in Triton APIs and familiar CLIs that call
 those APIs so it will all be the same from the Triton perspective.
 
 Notable in all of this is that as systemd has become capable of taking over more

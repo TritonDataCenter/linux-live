@@ -31,7 +31,7 @@ sudo touch /data/.system_pool
 ```
 apt install -y git
 ```
-5. Build the [Image](#image-creation) - clone this repo and run the debian live
+5. Build the [Image](#image-creation) - clone this repo and run the debian-live
    image builder:
 ```
     git clone -b linuxcn https://github.com/joyent/linux-live
@@ -435,7 +435,7 @@ would expect from a Joyent repository.
 * `proto`: extra files that are copied directly into the repository.  In
   addition, each systemd service that is included in
   `proto/usr/lib/systemd/system` is enabled in the image.  That is, the files
-  are delivered into the iamge, then the appropriate systemd symbolic links are
+  are delivered into the image, then the appropriate systemd symbolic links are
   created.
 * `tools`: home to the `debian-live` script and perhaps other tools.
 
@@ -465,7 +465,7 @@ To list the available stages, use `tools/debian-live -h`:
 $ ./tools/debian-live -h
 ./tools/debian-live: illegal option -- h
 Usage:
-Create a new iamge from scratch
+Create a new image from scratch
     debian-live
 
 Run just the specified steps on an existing image build
