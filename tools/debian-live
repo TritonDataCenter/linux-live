@@ -11,13 +11,13 @@
 #
 
 #
-# This is an initial crude hack that generates a debian live image that includes
-# zfs.  Thanks to https://willhaley.com/blog/custom-debian-live-environment/ for
+# This is an initial crude hack that generates a debian-live image that includes
+# ZFS.  Thanks to https://willhaley.com/blog/custom-debian-live-environment/ for
 # making this problem easily approachable.
 #
 # WARNING:   This script generates an image that taints the kernel with CDDL
-#	     licensed zfs modules.  Many believe that distribution of the binary
-#	     zfs modules infringe on the GPLv2 licensed Linux code.
+#	     licensed ZFS modules.  Many believe that distribution of the binary
+#	     ZFS modules infringe on the GPLv2 licensed Linux code.
 #	     Distribution of images generated with this script is highly
 #	     discouraged.
 #
@@ -53,7 +53,7 @@ packages+=(dmidecode python3)
 packages+=(openssh-server vim curl less ca-certificates iproute2 man
    dnsutils iputils-ping sysstat sudo strace lsof psmisc)
 
-# These will be installed while zfs is built, then removed.  Unnecessary
+# These will be installed while ZFS is built, then removed.  Unnecessary
 # dependencies will also be removed.
 zfs_build_packages=(gawk alien libblkid-dev uuid-dev libudev-dev libssl-dev
     zlib1g-dev libaio-dev libattr1-dev libelf-dev python3-setuptools
@@ -191,7 +191,7 @@ function install_live {
 	    "${apt_args[@]}" "${packages[@]}" "${zfs_build_packages[@]}"
 }
 
-# XXX This needs to be reworked so that the zfs binaries are not part of the
+# XXX This needs to be reworked so that the ZFS binaries are not part of the
 # squashfs or initrd files.  They can be built, but the artifacts should be
 # stored in a way that they can be excluded from distributed images.
 function build_zfs {
@@ -233,9 +233,9 @@ function build_zfs {
 
 }
 
-# In the previous "apt install" we built the zfs kernel modules, which brought
+# In the previous "apt install" we built the ZFS kernel modules, which brought
 # in over 100 MiB of development tools.  Now, generate a binary deb containing
-# the zfs kernel modules built from zfs-dkms and install the non-dkms binary zfs
+# the ZFS kernel modules built from zfs-dkms and install the non-dkms binary ZFS
 # module.  The packages needed for building will be kept around until
 # postinstall as other phases may need them.
 function reduce_zfs {
@@ -335,7 +335,7 @@ function postinstall {
 
 		# The root home directory has nothing useful in it. Removing it
 		# makes it possible to have a dataset mounted on /root, thereby
-		# easily preserving ssh authorized_keys and such.
+		# easily preserving SSH authorized_keys and such.
 		rm -rf /root
 		mkdir -m 700 /root
 
@@ -448,7 +448,7 @@ function create_iso {
 	    /EFI/efiboot.img=$scratch/efiboot.img
 }
 
-# Creates a USB disk that should be bootable with bios or uefi. The parition
+# Creates a USB disk that should be bootable with BIOS or UEFI. The partition
 # containing the image is over sized by about 20% for metadata and a bit of
 # breathing room.  Those that want to store more stuff on it can grow the
 # partition and file system to use the available space.
@@ -568,13 +568,13 @@ function usage {
 	echo ""
 	echo "  -h  Show this message."
 	echo "  -d  Build within specified dataset."
-	echo "  -m  Install packages that are needed for succesful execution."
+	echo "  -m  Install packages that are needed for successful execution."
 	echo "      Without this, preflight_check will provide an error message"
 	echo "      and exit if any required packages are not installed."
 	echo "  -r  Use this release.  Most useful when retrying a failed image"
 	echo "      build after fixing something."
 	echo ""
-	echo "Create a new iamge from scratch"
+	echo "Create a new image from scratch"
 	echo "    debian-live"
 	echo ""
 	echo "Run just the specified steps on an existing image build"
@@ -700,7 +700,7 @@ product="
 Name: Joyent Platform Image
 Image: $name $release
 Documentation: https://github.com/joyent/linux-live/
-Description: $name with zfs $zfs_ver.  THIS IMAGE IS NOT REDISTRIBUTABLE with the zfs kernel modules.
+Description: $name with ZFS $zfs_ver.  THIS IMAGE IS NOT REDISTRIBUTABLE with the ZFS kernel modules.
 Commit: https://github.com/joyent/linux-live/commit/$commit
 "
 

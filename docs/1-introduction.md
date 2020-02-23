@@ -24,25 +24,23 @@ a fresh image via PXE boot or a live image boot from a DVD or USB drive.
 Of course, there is some state that is needed on each compute node.  For
 instance, installed container instances should survive the CN reboot.  There is
 also a small amount of configuration that is needed across a variety of
-different directories.  All of this state is maintained in a zfs pool.
+different directories.  All of this state is maintained in a ZFS pool.
 
 ## Key technology mapping
 
 Over the years, Linux has grown many native features that resemble those that
 are used in SmartOS.  A quick mapping is as follows:
 
-| SmartOS        | Linux          | Notes                                    |
-|----------------|----------------|------------------------------------------|
-| SMF            | systemd        | systemd has taken over more of the world
-than SMF has in SmartOS. |
-| zfs            | zfs            | Due to licensing constraints, ZFS is
-distributed only as source code |
-| zoneadmd       | systemd.nspawnd | systemd allows a service per container |
-| `zoneadm -z $i boot` | `systemctl start triton-instance@$i` | Instances defined based on a template service. `machinectl start $i` is almost there, but not quite. |
-| `zoneadm -z $i shutdown` | `systemctl stop triton-isnstance@$i` or `machinectl stop $i`
-| `zlogin $i`    | `machinectl login $i` | This likely requires authetication |
+| SmartOS                  | Linux                 | Notes                                    |
+|--------------------------|-----------------------|------------------------------------------|
+| SMF                      | systemd               | systemd has taken over more of the world than SMF has in SmartOS. |
+| ZFS                      | ZFS                   | Due to licensing constraints, ZFS is distributed only as source code |
+| zoneadmd                 | systemd.nspawnd       | systemd allows a service per container   |
+| `zoneadm -z $i boot`     | `systemctl start triton-instance@$i` | Instances defined based on a template service. `machinectl start $i` is almost there, but not quite. |
+| `zoneadm -z $i shutdown` | `systemctl stop triton-isnstance@$i` or `machinectl stop $i` |   |
+| `zlogin $i`              | `machinectl login $i` | This likely requires authentication      |
 
-Of course, these will all be wrapped in Triton APIs and familar CLIs that call
+Of course, these will all be wrapped in Triton APIs and familiar CLIs that call
 those APIs so it will all be the same from the Triton perspective.
 
 Notable in all of this is that as systemd has become capable of taking over more

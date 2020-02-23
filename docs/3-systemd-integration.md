@@ -39,7 +39,7 @@ Notice that the commands (sections 1 and 8) tend to be `systemd` **dash**
 
 The above documentation and the various links you will be inspired to follow
 within that documentation should be matched with at least half a pot of coffee.
-There's a lot there, and it is only a fracton of the available documentation.
+There's a lot there, and it is only a fraction of the available documentation.
 systemd is easier to love (use, tolerate?) with the proper investment in
 learning about how it works.
 
@@ -55,12 +55,12 @@ that have been customized.
 
 All systemd unit and drop-in files that are part of the platform image are
 delivered under `/usr/lib/systemd`.  This ensures that most directories under
-`/etc/systemd` are empty, allowing zfs file systems to be mounted on them.
+`/etc/systemd` are empty, allowing ZFS file systems to be mounted on them.
 
 
 ### Enable DHCP on all NICs
 
-During development, it is handy to have NICs configured by dhcp.  Except when
+During development, it is handy to have NICs configured by DHCP.  Except when
 it's not.  `/usr/lib/systemd/network/99-dhcp-all-nics.network` contains:
 
 ```
@@ -77,7 +77,7 @@ the default grub entry by [debian-live](../tools/debian-live).  An alternate
 grub entry exists to disable that feature, leaving it to the admin to configure
 NICs however they want.
 
-It is anticipated that enabling dhcp on all NICs is a poor choice in many cases
+It is anticipated that enabling DHCP on all NICs is a poor choice in many cases
 and we need to have a way to override it without selecting a non-default boot
 entry each time.
 
@@ -95,7 +95,7 @@ with a symbolic link in `/etc/systemd/network`:
 # ln -s /dev/null /etc/systemd/network/99-dhcp-all-nics.network
 ```
 
-To add static configuration of a single nic, we add
+To add static configuration of a single NIC, we add
 `/etc/systemd/network/10-admin.network`:
 
 ```
@@ -146,7 +146,7 @@ is a subset of:
   path, not the original path.  Instead, if you need to ensure that the async
   `udevd` work is done, run `udevadm settle`.
 
-The the link renamed, it can be configured.  If the link doesn't need an address
+With the link renamed, it can be configured.  If the link doesn't need an address
 in the host, the link will remain down.  This causes problems for macvlan
 instances in containers, as they cannot use their macvlan instances while the
 lower link is down.
