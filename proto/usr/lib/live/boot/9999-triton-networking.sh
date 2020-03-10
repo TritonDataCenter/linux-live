@@ -10,6 +10,13 @@
 # Copyright 2020 Joyent, Inc.
 #
 
+# Avoid ipconfig call of /usr/lib/live/boot/9990-select-eth-device.sh
+# which will result in /run/net-ens33.conf file.
+Select_eth_device ()
+{
+      return
+}
+
 # The version of do_netsetup() that comes with the system, found in
 # /usr/lib/live/boot/9990-networking.sh, does not respect the command
 # line arguments that initramfs-tools uses.  Rather than trying to fix the
