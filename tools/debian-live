@@ -266,7 +266,7 @@ function install_usr_triton {
 	    export PATH=/usr/node/bin:$PATH
 
 	    ln -sf triton/node /usr/
-	    npm install -g manta json
+	    npm install -g manta json bunyan
 	'
 }
 
