@@ -51,7 +51,7 @@ packages+=(dmidecode python3)
 
 # I noticed these important things are missing
 packages+=(openssh-server vim curl less ca-certificates iproute2 man
-   dnsutils iputils-ping sysstat sudo strace lsof psmisc)
+   dnsutils iputils-ping ntpdate sysstat sudo strace lsof psmisc)
 
 # These will be installed while ZFS is built, then removed.  Unnecessary
 # dependencies will also be removed.
