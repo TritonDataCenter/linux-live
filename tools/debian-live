@@ -58,7 +58,7 @@ packages+=(openssh-server vim curl less ca-certificates iproute2 man
 zfs_build_packages=(gawk alien libblkid-dev uuid-dev libudev-dev libssl-dev
     zlib1g-dev libaio-dev libattr1-dev libelf-dev python3-setuptools
     python3-cffi libffi-dev git build-essential gdebi linux-headers-amd64
-    dpkg-dev fakeroot debhelper git dkms python3-dev
+    dpkg-dev fakeroot debhelper dkms python3-dev
 )
 
 # Args added to 'apt install'
@@ -595,7 +595,7 @@ function fail_usage {
 exec </dev/null
 
 release=$(TZ=UTC date +%Y%m%dT%H%M%SZ)
-all_steps=(preflight_check
+all_steps=(
     create_bootstrap
     install_live
     build_zfs
@@ -626,7 +626,7 @@ if (( $# == 0 )); then
 else
 	steps=()
 	prev=
-	for step in preflight_check $@; do
+	for step in $@; do
 		if [[ $step != ... ]]; then
 			steps+=($step)
 			prev=$step
@@ -646,10 +646,7 @@ fi
 
 # Do the preflight_check early to avoid erroring out when trying to use commands
 # like `git` that may not already be installed.
-if [[ ${steps[0]} == preflight_check ]]; then
-	preflight_check
-	steps[0]=true
-fi
+preflight_check 
 
 if [[ -z $dataset ]]; then
 	datasets=($(zfs list -Ho name -d 1))
