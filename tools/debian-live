@@ -406,7 +406,7 @@ EOF
 	out=$(git status 2>&1)
 	[[ -n "$out" ]] && echo "$out" > "$dir/etc/patches/git-status"
 
-	local dir_m="$dir/platform/$(uname -m)"
+	local dir_m="$dir/$(uname -m)"
 	mkdir -p "$dir_m"
 	cp $root/vmlinuz $dir_m/vmlinuz
 	cp $root/initrd.img $dir_m/initrd
