@@ -1,0 +1,2 @@
+# This script is to duplicate similar functionality in SmartOS.
+echo "global"
