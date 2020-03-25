@@ -1,0 +1,7 @@
+#!/usr/node/bin/node
+
+var sysinfo = require('/usr/triton/sdc-cn-agent/lib/backends/linux/sysinfo');
+sysinfo.sysInfo(null, function (err, info) {
+    console.log(JSON.stringify(info, null, 2))
+});
+
