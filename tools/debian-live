@@ -462,7 +462,7 @@ function create_usb {
 	local esp_end=$(( esp_start + esp_sec - 1 ))
 	local esp_mnt=$scratch/mnt/esp
 	local image_start=$(( esp_end + 1 ))
-	local image_sec=$(du -sk $image | awk '{print $1 * 2 * 1.2}')
+	local image_sec=$(du -sk $image | awk '{printf "%0.f\n", $1 * 2 * 1.2}')
 	local image_mnt=$scratch/mnt/image
 	local total_sec=$(( image_start + image_sec ))
 	local disk_mb=$(( total_sec / 2 / 1024 + 1 ))
