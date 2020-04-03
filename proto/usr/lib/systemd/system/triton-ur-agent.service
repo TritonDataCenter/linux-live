@@ -1,0 +1,31 @@
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+
+#
+# Copyright 2020 Joyent, Inc.
+#
+
+#
+# This file is delivered as part of the Triton Platform Image.
+#
+# On boot, the node ur-agent process will connect to a rabbitmq host
+# to heartbeat information about this compute node. The sdc-server
+# setup will communicate with the ur-agent to launch scripts that
+# will configure and setup the compute node.
+#
+
+[Unit]
+Description=Triton ur-agent used for server setup
+Documentation=https://github.com/joyent/sdc-cn-agent#linuxcn
+After=network.target
+
+[Service]
+Environment=PATH=/usr/node/bin:/usr/triton/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Type=simple
+ExecStart=/usr/node/bin/node /usr/triton/sdc-ur-agent/ur-agent
+
+[Install]
+WantedBy=multi-user.target
