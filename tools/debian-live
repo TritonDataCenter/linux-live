@@ -26,6 +26,13 @@ export PATH=/bin:/usr/bin:/usr/sbin
 
 PS4='${FUNCNAME:-debian-live}: '
 set -euo pipefail
+set -o xtrace
+
+# Unset some environment variables that can mess with chroot npm install.
+unset SUDO_COMMAND
+unset SUDO_GID
+unset SUDO_UID
+unset SUDO_USER
 
 debver=buster
 name="Debian 10"
@@ -256,7 +263,7 @@ function reduce_zfs {
 # As much as possible, bits that are needed to support Triton will appear in
 # /usr/triton.
 function install_usr_triton {
-	chroot "$root" mkdir -p /usr/triton
+	chroot "$root" mkdir -p /usr/triton/bin
 	curl "$manta_url/$node_manta_dir/$node_archive" |
 	    chroot "$root" tar -C /usr/triton --no-same-owner -xzf -
 	chroot "$root" bash -c '
@@ -265,8 +272,98 @@ function install_usr_triton {
 	    export LC_ALL=C
 	    export PATH=/usr/node/bin:$PATH
 
+	    # Create /usr/node shortcut.
 	    ln -sf triton/node /usr/
-	    npm install -g manta json bunyan
+
+	    # Install common node modules.
+	    npm install -g manta json bunyan assert-plus
+
+	    # Symlink lib/node to ensure global node_modules is on the require path.
+	    # XXX - why is this node_modules not already on the nodejs require path?
+	    cd /usr/triton/node/lib && ln -s node_modules node
+
+	    # A lot of triton node scripts use modules from /usr/node/node_modules,
+	    # so we keep that compatability (for mkzpool, disklayout and friends).
+	    ln -sf /usr/node/lib/node /usr/node/node_modules
+	'
+}
+
+# Install node scripts/modules that will be used by sdc-server setup:
+#  node_modules:
+#   - joyent/node-getopt
+#   - joyent/node-zfs
+#  scripts:
+#   - disklayout
+#   - mkzpool
+function install_usr_triton_helper_scripts {
+	chroot "$root" bash -c '
+	    PS4="INSTALL_USR_TRITON_HELPER_SCRIPTS: "
+	    set -xeuo pipefail
+	    export LC_ALL=C
+	    export PATH=/usr/node/bin:$PATH
+
+	    # node-getopt
+	    git -C /usr/triton clone https://github.com/joyent/node-getopt
+	    mv /usr/triton/node-getopt/lib/getopt.js \
+		/usr/triton/node/lib/node_modules/
+	    rm -rf /usr/triton/node-getopt
+
+	    # node-zfs
+	    # Note: required for disklayout, mkzpool.
+	    git -C /usr/triton clone -b linuxcn https://github.com/joyent/node-zfs
+	    mv /usr/triton/node-zfs/lib/*.js \
+		/usr/triton/node/lib/node_modules/
+	    rm -rf /usr/triton/node-zfs
+
+	    # disklayout
+	    curl -sSL https://raw.githubusercontent.com/joyent/smartos-live/linuxcn/src/disklayout.js > \
+		/usr/triton/bin/disklayout
+	    chmod 700 /usr/triton/bin/disklayout
+
+	    # mkzpool
+	    curl -sSL https://raw.githubusercontent.com/joyent/smartos-live/linuxcn/src/mkzpool.js > \
+                /usr/triton/bin/mkzpool
+	    chmod 700 /usr/triton/bin/mkzpool
+	'
+}
+
+# Install ur-agent and the dependencies (nice to have a build of this).
+function install_usr_triton_ur_agent {
+	chroot "$root" bash -c '
+	    PS4="INSTALL_USR_TRITON_UR_AGENT: "
+	    set -xeuo pipefail
+	    export LC_ALL=C
+	    export PATH=/usr/node/bin:$PATH
+
+	    apt install -y git
+
+	    git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/sdc-ur-agent
+
+	    # Remove git/python.
+	    apt remove -y git
+	'
+}
+
+# Install cn-agent and the dependencies (nice to have a build of this).
+function install_usr_triton_cn_agent {
+	# git -C $scratch clone -b linuxcn https://github.com/joyent/sdc-cn-agent
+	# cd $scratch/sdc-cn-agent && npm install
+	# cp -rp $scratch/sdc-cn-agent $root/usr/triton/
+
+	chroot "$root" bash -c '
+	    PS4="INSTALL_USR_TRITON_CN_AGENT: "
+	    set -xeuo pipefail
+	    export LC_ALL=C
+	    export PATH=/usr/node/bin:$PATH
+
+	    apt install -y git python
+
+	    git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/sdc-cn-agent
+	    cd /usr/triton/sdc-cn-agent
+	    npm install
+
+	    # Remove git/python.
+	    apt remove -y git python
 	'
 }
 
@@ -601,6 +698,9 @@ all_steps=(
     build_zfs
     reduce_zfs
     install_usr_triton
+    install_usr_triton_helper_scripts
+    install_usr_triton_ur_agent
+    install_usr_triton_cn_agent
     install_proto
     postinstall
     prepare_archive_bits
