@@ -60,9 +60,9 @@ packages+=(dmidecode python3)
 packages+=(openssh-server vim curl less ca-certificates iproute2 man
    dnsutils iputils-ping ntpdate sysstat sudo strace lsof psmisc)
 
-# These will be installed while ZFS is built, then removed.  Unnecessary
-# dependencies will also be removed.
-zfs_build_packages=(gawk alien libblkid-dev uuid-dev libudev-dev libssl-dev
+# These packages are here to aid in building the image - they are installed
+# temporarily, then later removed.
+temp_build_packages=(gawk alien libblkid-dev uuid-dev libudev-dev libssl-dev
     zlib1g-dev libaio-dev libattr1-dev libelf-dev python3-setuptools
     python3-cffi libffi-dev git build-essential gdebi linux-headers-amd64
     dpkg-dev fakeroot debhelper dkms python3-dev
@@ -194,8 +194,11 @@ function install_live {
 	EOF
 
 	chroot "$root" apt update
+}
+
+function install_temporary_packages {
 	chroot "$root" env DEBIAN_FRONTEND=noninteractive apt install \
-	    "${apt_args[@]}" "${packages[@]}" "${zfs_build_packages[@]}"
+	    "${apt_args[@]}" "${packages[@]}" "${temp_build_packages[@]}"
 }
 
 # XXX This needs to be reworked so that the ZFS binaries are not part of the
@@ -240,13 +243,11 @@ function build_zfs {
 
 }
 
-# In the previous "apt install" we built the ZFS kernel modules, which brought
-# in over 100 MiB of development tools.  Now, generate a binary deb containing
-# the ZFS kernel modules built from zfs-dkms and install the non-dkms binary ZFS
-# module.  The packages needed for building will be kept around until
-# postinstall as other phases may need them.
-function reduce_zfs {
-	chroot "$root" env zfs_ver="$zfs_ver" pkgs="${zfs_build_packages[*]}" \
+# In the previous "apt install" we built the ZFS kernel modules and installed
+# additional packages (over 100 MiB of development tools), so now cleanup
+# (remove) the packages which are no longer needed.
+function remove_temporary_packages {
+	chroot "$root" env zfs_ver="$zfs_ver" pkgs="${temp_build_packages[*]}" \
 	    bash -c '
 		PS4="CLEAN_ZFS_DEV: "
 		set -xeuo pipefail
@@ -695,13 +696,14 @@ release=$(TZ=UTC date +%Y%m%dT%H%M%SZ)
 all_steps=(
     create_bootstrap
     install_live
+    install_temporary_packages
     build_zfs
-    reduce_zfs
     install_usr_triton
     install_usr_triton_helper_scripts
     install_usr_triton_ur_agent
     install_usr_triton_cn_agent
     install_proto
+    remove_temporary_packages
     postinstall
     prepare_archive_bits
     create_tgz
