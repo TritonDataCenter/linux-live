@@ -1,0 +1,61 @@
+#!/bin/sh -e
+
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+
+#
+# Copyright 2020 Joyent, Inc.
+#
+
+#
+# This script is responsible for copying the Triton IPXE configuration files to
+# the system root.
+#
+
+# We don't have any pre-script requirements.
+if [ "$1" = "prereqs" ]; then
+	exit 0
+fi
+
+echo "Copying Triton network configuration"
+
+triton_networking_file="/etc/triton-networking.json"
+triton_config_dir="${rootmnt}/usr/triton/config"
+
+if [ -f "${triton_networking_file}" ]; then
+	mkdir -p "${triton_config_dir}"
+	cp "${triton_networking_file}" "${triton_config_dir}"
+fi
+
+# Set hostname
+hostname=$(jq -e -r '.hostname // empty' "${triton_networking_file}" || echo "")
+if [ -n "${hostname}" ]; then
+    echo "Setting the predefined Triton hostname: |${hostname}|"
+    echo "${hostname}" > /etc/hostname
+else
+    # Set the hostname to be derived from the admin mac
+    admin_mac=$(jq -r '.nictags[] | select(.name == "admin") | .mac' "${triton_networking_file}")
+    echo "Setting the default Triton hostname, admin_mac: $admin_mac"
+    if [ -n "${admin_mac}" ]; then
+        # Replace ':' with '-'
+        echo "${admin_mac//:/-}" > /etc/hostname
+        echo "Set the default Triton hostname to: ${admin_mac//:/-}"
+    fi
+fi
+
+# Set domain name
+datacenter_name=$(jq -r '.datacenter_name // empty' "${triton_networking_file}")
+dns_domain=$(jq -r '.dns_domain // empty' "${triton_networking_file}")
+if [ -n "${dns_domain}" -a -n "${datacenter_name}" ]; then
+    sed -i "s/#Domains=/Domains=${datacenter_name}.${dns_domain}/" "${rootmnt}/etc/systemd/resolved.conf"
+fi
+
+# Set resolvers for systemd to use
+resolvers=$(jq -r '.resolvers | join(" ")' "${triton_networking_file}")
+if [ -n "${resolvers}" ]; then
+    sed -i "s/#DNS=/DNS=${resolvers}/" "${rootmnt}/etc/systemd/resolved.conf"
+fi
+
+exit 0
