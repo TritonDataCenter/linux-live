@@ -18,3 +18,4 @@ fi
 
 copy_exec /usr/sbin/dmidecode
 copy_exec /usr/triton/bin/sethostid /bin/sethostid
+copy_exec /usr/bin/jq
