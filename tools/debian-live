@@ -58,7 +58,7 @@ packages+=(dmidecode python3)
 
 # I noticed these important things are missing
 packages+=(openssh-server vim curl less ca-certificates iproute2 man
-   dnsutils iputils-ping ntpdate sysstat sudo strace lsof psmisc)
+   dnsutils iputils-ping jq ntpdate sysstat sudo strace lsof psmisc)
 
 # These packages are here to aid in building the image - they are installed
 # temporarily, then later removed.
@@ -196,7 +196,8 @@ function install_live {
 	chroot "$root" apt update
 }
 
-function install_temporary_packages {
+# Install both wanted packages and temporary packages.
+function install_packages {
 	chroot "$root" env DEBIAN_FRONTEND=noninteractive apt install \
 	    "${apt_args[@]}" "${packages[@]}" "${temp_build_packages[@]}"
 }
@@ -361,7 +362,8 @@ function install_usr_triton_cn_agent {
 
 	    git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/sdc-cn-agent
 	    cd /usr/triton/sdc-cn-agent
-	    npm install
+	    rm -f package-lock.json
+	    npm install --ignore-scripts
 
 	    # Remove git/python.
 	    apt remove -y git python
@@ -696,7 +698,7 @@ release=$(TZ=UTC date +%Y%m%dT%H%M%SZ)
 all_steps=(
     create_bootstrap
     install_live
-    install_temporary_packages
+    install_packages
     build_zfs
     install_usr_triton
     install_usr_triton_helper_scripts
