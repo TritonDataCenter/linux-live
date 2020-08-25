@@ -58,7 +58,7 @@ packages+=(dmidecode python3)
 
 # I noticed these important things are missing
 packages+=(openssh-server vim curl less ca-certificates iproute2 man
-   dnsutils iputils-ping jq ntpdate sysstat sudo strace lsof psmisc)
+   bc dnsutils iputils-ping jq ntpdate sysstat sudo strace lsof psmisc)
 
 # These packages are here to aid in building the image - they are installed
 # temporarily, then later removed.

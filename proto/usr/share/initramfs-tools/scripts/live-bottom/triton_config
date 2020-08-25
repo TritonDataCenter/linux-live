@@ -29,19 +29,29 @@ if [ -f "${triton_networking_file}" ]; then
 	cp "${triton_networking_file}" "${triton_config_dir}"
 fi
 
+IPprefix_by_netmask() {
+    #function returns prefix for given netmask in arg1
+    #Credit: https://stackoverflow.com/questions/50413579/bash-convert-netmask-in-cidr-notation/50414560
+    bits=0
+    for octet in $(echo $1| sed 's/\./ /g'); do 
+         binbits=$(echo "obase=2; ibase=10; ${octet}"| bc | sed 's/0//g') 
+         bits=$(expr $bits + ${#binbits})
+    done
+    echo "/${bits}"
+}
+
 # Set hostname
 hostname=$(jq -e -r '.hostname // empty' "${triton_networking_file}" || echo "")
 if [ -n "${hostname}" ]; then
     echo "Setting the predefined Triton hostname: |${hostname}|"
-    echo "${hostname}" > /etc/hostname
+    echo "${hostname}" > "${rootmnt}/etc/hostname"
 else
     # Set the hostname to be derived from the admin mac
     admin_mac=$(jq -r '.nictags[] | select(.name == "admin") | .mac' "${triton_networking_file}")
     echo "Setting the default Triton hostname, admin_mac: $admin_mac"
     if [ -n "${admin_mac}" ]; then
         # Replace ':' with '-'
-        echo "${admin_mac//:/-}" > /etc/hostname
-        echo "Set the default Triton hostname to: ${admin_mac//:/-}"
+        echo "${admin_mac}" | sed "s/:/-/g" > "${rootmnt}/etc/hostname"
     fi
 fi
 
@@ -57,5 +67,50 @@ resolvers=$(jq -r '.resolvers | join(" ")' "${triton_networking_file}")
 if [ -n "${resolvers}" ]; then
     sed -i "s/#DNS=/DNS=${resolvers}/" "${rootmnt}/etc/systemd/resolved.conf"
 fi
+
+# Create devices
+counter=0
+while IFS=$'\t' read -r mac nictag mtu ip netmask gateway resolvers; do
+    counter=$((counter+1))
+    filename="${rootmnt}/etc/systemd/network/${counter}-${nictag}.network"
+    cat <<EOF >> "${filename}"
+[Match]
+MACAddress=${mac}
+
+[Network]
+Address=${ip}$(IPprefix_by_netmask ${netmask})
+EOF
+
+    # Add DNS resolvers - they are comma separated, e.g. "8.8.8.8,8.8.4.4"
+    if [ "$resolvers" != "" ]; then
+        for dns in $(echo "${resolvers}" | sed "s/,/ /g"); do
+            echo "DNS=${dns}" >> "${filename}"
+        done
+    fi
+
+    if [ "$gateway" != "null" ]; then
+        echo "[Route]" >> "${filename}"
+        echo "Gateway=${gateway}" >> "${filename}"
+    fi
+
+    # Add MTU
+    if [ "$mtu" != "null" ]; then
+        echo -e "\n[Link]" >> "${filename}"
+        echo "MTUBytes=${mtu}" >> "${filename}"
+    fi
+
+    # Create .link file to rename this device
+    linkfilename="${rootmnt}/etc/systemd/network/${counter}-${nictag}.link"
+    cat <<EOF >> "${linkfilename}"
+[Match]
+MACAddress=${mac}
+
+[Link]
+Name=${nictag}
+EOF
+
+done <<EOJQ
+$(jq -r '.vnics[] | [.mac // "null", .nic_tag // "null", .mtu // "null", .ip // "null", .netmask // "null", .gateway // "null", (.resolvers | join(","))] | @tsv' "${triton_networking_file}")
+EOJQ
 
 exit 0
