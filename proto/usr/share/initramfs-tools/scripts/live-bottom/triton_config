@@ -19,15 +19,27 @@ if [ "$1" = "prereqs" ]; then
 	exit 0
 fi
 
+triton_config_dir="${rootmnt}/usr/triton/config"
+
+echo "Copying Compute Node configuration"
+
+node_config_file="/etc/node.config"
+
+if [ -f "${node_config_file}" ]; then
+        mkdir -p "${triton_config_dir}"
+        cp "${node_config_file}" "${triton_config_dir}"
+fi
+
 echo "Copying Triton network configuration"
 
 triton_networking_file="/etc/triton-networking.json"
-triton_config_dir="${rootmnt}/usr/triton/config"
 
 if [ -f "${triton_networking_file}" ]; then
 	mkdir -p "${triton_config_dir}"
 	cp "${triton_networking_file}" "${triton_config_dir}"
 fi
+
+
 
 IPprefix_by_netmask() {
     #function returns prefix for given netmask in arg1
