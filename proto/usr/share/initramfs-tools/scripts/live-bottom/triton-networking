@@ -10,58 +10,72 @@
 #
 
 #
-# This script is responsible for copying the Triton IPXE configuration files to
-# the system root.
+# This script is responsible for setting up the Triton networking stack.
 #
 
-# We don't have any pre-script requirements.
+PREREQ="syspool"
+
+# Pre-script requirements.
 if [ "$1" = "prereqs" ]; then
+    echo "${PREREQ}"
 	exit 0
 fi
 
-triton_config_dir="${rootmnt}/usr/triton/config"
+. /scripts/functions
 
-echo "Copying Compute Node configuration"
-
-node_config_file="/etc/node.config"
-
-if [ -f "${node_config_file}" ]; then
-        mkdir -p "${triton_config_dir}"
-        cp "${node_config_file}" "${triton_config_dir}"
-fi
-
-echo "Copying Triton network configuration"
+log_begin_msg "triton-networking"
 
 triton_networking_file="/etc/triton-networking.json"
+triton_config_dir="${rootmnt}/zones/config"
+usr_triton_config_dir="${rootmnt}/usr/triton/config"
+
+mkdir -p "${triton_config_dir}"
 
 if [ -f "${triton_networking_file}" ]; then
-	mkdir -p "${triton_config_dir}"
 	cp "${triton_networking_file}" "${triton_config_dir}"
 fi
 
+# Make a symlink for the /usr/triton/config dir.
+if [ ! -e "${usr_triton_config_dir}" ]; then
+	ln -s "/zones/config" "${usr_triton_config_dir}"
+fi
 
 
+# Returns prefix for given netmask in arg1.
+# Credit: https://stackoverflow.com/questions/50413579/bash-convert-netmask-in-cidr-notation/50414560
 IPprefix_by_netmask() {
-    #function returns prefix for given netmask in arg1
-    #Credit: https://stackoverflow.com/questions/50413579/bash-convert-netmask-in-cidr-notation/50414560
+    netmask=$1
+    # Check that it's an IPv4 address.
+    if ! expr "${netmask}" : '[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$' >/dev/null; then
+        return 0
+    fi
+    
     bits=0
-    for octet in $(echo $1| sed 's/\./ /g'); do 
+    for octet in $(echo $netmask | sed 's/\./ /g'); do 
          binbits=$(echo "obase=2; ibase=10; ${octet}"| bc | sed 's/0//g') 
          bits=$(expr $bits + ${#binbits})
     done
     echo "/${bits}"
 }
 
+# Returns prefix for given netmask in arg1.
+# Credit: https://stackoverflow.com/questions/46755067/how-to-get-device-name-by-mac-address-using-shell
+get_device_by_hwaddr ()
+{
+    LANG=C ip -o link | awk -F ': ' -vIGNORECASE=1 '!/link\/ieee802\.11/ && /'"$1"'/ { print $2 }'
+}
+
+# Get the admin nic tag name
+admin_nic_tag=$(jq -r '.admin_tag // "admin"' "${triton_networking_file}")
+
 # Set hostname
 hostname=$(jq -e -r '.hostname // empty' "${triton_networking_file}" || echo "")
-if [ -n "${hostname}" ]; then
-    echo "Setting the predefined Triton hostname: |${hostname}|"
+if [ "${hostname}" != "" ]; then
     echo "${hostname}" > "${rootmnt}/etc/hostname"
 else
     # Set the hostname to be derived from the admin mac
-    admin_mac=$(jq -r '.nictags[] | select(.name == "admin") | .mac' "${triton_networking_file}")
-    echo "Setting the default Triton hostname, admin_mac: $admin_mac"
-    if [ -n "${admin_mac}" ]; then
+    admin_mac=$(jq -r '.nictags[] | select(.name == "'"${admin_nic_tag}"'") | .mac' "${triton_networking_file}")
+    if [ "${admin_mac}" != "" ]; then
         # Replace ':' with '-'
         echo "${admin_mac}" | sed "s/:/-/g" > "${rootmnt}/etc/hostname"
     fi
@@ -70,21 +84,24 @@ fi
 # Set domain name
 datacenter_name=$(jq -r '.datacenter_name // empty' "${triton_networking_file}")
 dns_domain=$(jq -r '.dns_domain // empty' "${triton_networking_file}")
-if [ -n "${dns_domain}" -a -n "${datacenter_name}" ]; then
+if [ "${dns_domain}" != "" -a "${datacenter_name}" != "" ]; then
     sed -i "s/#Domains=/Domains=${datacenter_name}.${dns_domain}/" "${rootmnt}/etc/systemd/resolved.conf"
+    echo "domain ${datacenter_name}.${dns_domain}" >> "/etc/resolv.conf"
 fi
 
 # Set resolvers for systemd to use
 resolvers=$(jq -r '.resolvers | join(" ")' "${triton_networking_file}")
-if [ -n "${resolvers}" ]; then
+if [ "${resolvers}" != "" ]; then
     sed -i "s/#DNS=/DNS=${resolvers}/" "${rootmnt}/etc/systemd/resolved.conf"
+    # Add resolvers for the current initramfs too:
+    echo "nameserver ${resolvers}" >> "/etc/resolv.conf"
 fi
 
-# Create devices
+# Create network devices
 counter=0
 while IFS=$'\t' read -r mac nictag mtu ip netmask gateway resolvers; do
     counter=$((counter+1))
-    filename="${rootmnt}/etc/systemd/network/${counter}-${nictag}.network"
+    filename="${rootmnt}/etc/systemd/network/0${counter}-${nictag}.network"
     cat <<EOF >> "${filename}"
 [Match]
 MACAddress=${mac}
@@ -112,7 +129,7 @@ EOF
     fi
 
     # Create .link file to rename this device
-    linkfilename="${rootmnt}/etc/systemd/network/${counter}-${nictag}.link"
+    linkfilename="${rootmnt}/etc/systemd/network/0${counter}-${nictag}.link"
     cat <<EOF >> "${linkfilename}"
 [Match]
 MACAddress=${mac}
@@ -121,8 +138,22 @@ MACAddress=${mac}
 Name=${nictag}
 EOF
 
+    if [ "${nictag}" == "${admin_nic_tag}" ]; then
+        # The admin (iPXE) nic cannot be renamed whilst it is in use, so we
+        # must manually stop the nic, rename it and then restart it.
+        linkname=$(get_device_by_hwaddr "${mac}")
+        if [ "${linkname}" != "" ]; then
+            # Manually set the device name.
+            ip link set "${linkname}" down
+            ip link set "${linkname}" name "${nictag}"
+            ip link set "${nictag}" up
+        fi
+    fi
+
 done <<EOJQ
 $(jq -r '.vnics[] | [.mac // "null", .nic_tag // "null", .mtu // "null", .ip // "null", .netmask // "null", .gateway // "null", (.resolvers | join(","))] | @tsv' "${triton_networking_file}")
 EOJQ
+
+log_end_msg
 
 exit 0

@@ -1,0 +1,53 @@
+#!/bin/sh -e
+
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+
+#
+# Copyright 2020 Joyent, Inc.
+#
+
+#
+# This script is responsible for setting up the Triton networking stack.
+#
+
+PREREQ="triton-networking"
+
+# Pre-script requirements.
+if [ "$1" = "prereqs" ]; then
+    echo "${PREREQ}"
+	exit 0
+fi
+
+set -o xtrace
+
+. /scripts/functions
+
+log_begin_msg "triton-general"
+
+# Copy the Compute Node configuration
+triton_config_dir="${rootmnt}/zones/config"
+node_config_file="/etc/node.config"
+
+if [ -f "${node_config_file}" ]; then
+    mkdir -p "${triton_config_dir}"
+    cp "${node_config_file}" "${triton_config_dir}"
+
+    # Set the default root password.
+    root_shadow=$(grep 'root_shadow=' "${node_config_file}" | sed "s/.*='//" | sed "s/'//")
+    echo "root:$root_shadow" | /usr/sbin/chpasswd -e --root "${rootmnt}"
+fi
+
+# Ensure the /zones/config/ssh dir exists, so we can store ssh host keys here.
+mkdir -p "${triton_config_dir}/ssh"
+
+# Add the root SDC SSH key.
+if [ ! -d "${rootmnt}/root/.ssh" ]; then
+    mkdir -p "${rootmnt}/root/.ssh"
+fi
+
+log_end_msg
+
+exit 0
