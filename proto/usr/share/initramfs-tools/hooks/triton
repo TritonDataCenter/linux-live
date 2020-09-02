@@ -18,7 +18,9 @@ fi
 
 copy_exec /usr/sbin/dmidecode
 copy_exec /usr/triton/bin/sethostid /bin/sethostid
-# jq used by triton_config
+# jq used by triton-networking
 copy_exec /usr/bin/jq
-# bc used by triton_config
+# bc used by triton-networking
 copy_exec /usr/bin/bc
+# chpasswd used by triton-general
+copy_exec /usr/sbin/chpasswd

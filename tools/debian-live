@@ -427,7 +427,8 @@ function postinstall {
 		echo "$product" >/etc/product
 
 		find /etc/ssh -name "ssh_host_*key*" -exec rm -f "{}" ";"
-		sed -i -e "s,^#HostKey /etc/ssh/,HostKey /var/ssh/," \
+		sed -i \
+		    -e "s,^#HostKey /etc/ssh/,HostKey /zones/config/ssh/," \
 		    -e "s,^#\(PermitRootLogin prohibit-password\),\1," \
 		    /etc/ssh/sshd_config
 
