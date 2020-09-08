@@ -22,22 +22,15 @@ if [ "$1" = "prereqs" ]; then
 fi
 
 . /scripts/functions
+. /scripts/triton
 
 log_begin_msg "triton-networking"
 
 triton_networking_file="/etc/triton-networking.json"
-triton_config_dir="${rootmnt}/zones/config"
-usr_triton_config_dir="${rootmnt}/usr/triton/config"
-
-mkdir -p "${triton_config_dir}"
+triton_config_dir=$(getTritonConfigDir)
 
 if [ -f "${triton_networking_file}" ]; then
 	cp "${triton_networking_file}" "${triton_config_dir}"
-fi
-
-# Make a symlink for the /usr/triton/config dir.
-if [ ! -e "${usr_triton_config_dir}" ]; then
-	ln -s "/zones/config" "${usr_triton_config_dir}"
 fi
 
 

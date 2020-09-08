@@ -1,0 +1,31 @@
+#!/bin/sh -e
+
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+
+#
+# Copyright 2020 Joyent, Inc.
+#
+
+#
+# This script provides helper functions for setting up Triton.
+#
+
+# Setup the config dir.
+function getTritonConfigDir() {
+    zconfig=$(zfs mount | grep '/zones/config' >/dev/null || echo "not found")
+    triton_config_dir="${rootmnt}/zones/config"
+    usr_triton_config_dir="${rootmnt}/usr/triton/config"
+
+    if [ "${zconfig}" == "not found" ]; then
+        mkdir -p "${usr_triton_config_dir}"
+        triton_config_dir="${usr_triton_config_dir}"
+    else
+        # Make a symlink for the /usr/triton/config dir.
+        ln -s "/zones/config" "${usr_triton_config_dir}"
+    fi
+
+    echo "${triton_config_dir}"
+}
