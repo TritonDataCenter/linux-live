@@ -21,18 +21,18 @@ if [ "$1" = "prereqs" ]; then
 	exit 0
 fi
 
-set -o xtrace
-
 . /scripts/functions
+. /scripts/triton
+
+# set -o xtrace
 
 log_begin_msg "triton-general"
 
 # Copy the Compute Node configuration
-triton_config_dir="${rootmnt}/zones/config"
+triton_config_dir=$(getTritonConfigDir)
 node_config_file="/etc/node.config"
 
 if [ -f "${node_config_file}" ]; then
-    mkdir -p "${triton_config_dir}"
     cp "${node_config_file}" "${triton_config_dir}"
 
     # Set the default root password.
