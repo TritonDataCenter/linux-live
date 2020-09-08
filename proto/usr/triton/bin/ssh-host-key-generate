@@ -32,12 +32,11 @@ for path in "${keyfiles[@]}"; do
 			continue
 		fi
 
-		# Since we expect keys to be in the root of a mounted ZFS file
-		# system we refuse to create keys in a directorty that doesn't
-		# match our expectations.  Without this check, an errant key
-		# generation could pollute the mountpoint, thereby breaking `zfs
-		# mount`.
-		if [[ $(zfs list -Ho mountpoint "$dir") != $dir ]]; then
+		# Since we expect keys to be in a mounted ZFS file system we refuse to
+		# create keys in a directory that doesn't match our expectations.
+		# Without this check, an errant key generation could pollute the
+		# mountpoint, thereby breaking `zfs mount`.
+		if [[ $(zfs list -Ho mountpoint "$dir") ]]; then
 			echo "$0: $dir is not mounted as expected" 1>&2
 			exit 1
 		fi
