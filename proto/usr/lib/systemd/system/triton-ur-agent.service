@@ -19,7 +19,7 @@
 
 [Unit]
 Description=Triton ur-agent used for server setup
-Documentation=https://github.com/joyent/sdc-cn-agent#linuxcn
+Documentation=https://github.com/joyent/sdc-ur-agent#linuxcn
 After=network.target
 
 [Service]
