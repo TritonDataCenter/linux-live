@@ -366,6 +366,25 @@ function install_usr_triton_cn_agent {
 	'
 }
 
+# Install imgadm and the dependencies (nice to have a build of this).
+function install_usr_triton_imgadm {
+	chroot "$root" bash -c '
+        PS4="INSTALL_USR_TRITON_IMGADM: "
+        set -xeuo pipefail
+        export LC_ALL=C
+        export PATH=/usr/node/bin:$PATH
+
+        git -C /usr/triton/ clone https://github.com/joyent/node-imgadm
+        cd /usr/triton/node-imgadm
+        npm install
+
+        # Backward compat for SmartOS tooling.
+        ln -s /usr/triton/node-imgadm /opt/img
+        ln -s /usr/triton/node-imgadm/sbin/imgadm /usr/triton/bin/imgadm
+	'
+}
+
+
 # Install config-agent and the dependencies (nice to have a build of this).
 function install_usr_triton_config_agent {
 	# git -C $scratch clone -b linuxcn https://github.com/joyent/sdc-config-agent
@@ -727,6 +746,7 @@ all_steps=(
     install_usr_triton_ur_agent
     install_usr_triton_cn_agent
     install_usr_triton_config_agent
+    install_usr_triton_imgadm
     install_proto
     remove_temporary_packages
     postinstall
