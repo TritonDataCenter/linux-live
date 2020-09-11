@@ -1,2 +1,4 @@
 proto/usr/triton/bin/sethostid
 src/sethostid/sethostid
+proto/usr/share/initramfs-tools/scripts/live-bottom/pedro_config
+proto/usr/share/initramfs-tools/scripts/live-bottom/todd_config
