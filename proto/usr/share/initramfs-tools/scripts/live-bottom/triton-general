@@ -40,7 +40,7 @@ if [ -f "${node_config_file}" ]; then
     echo "root:$root_shadow" | /usr/sbin/chpasswd -e --root "${rootmnt}"
 fi
 
-# Ensure the /zones/config/ssh dir exists, so we can store ssh host keys here.
+# Ensure the $triton/config/ssh dir exists, so we can store ssh host keys here.
 mkdir -p "${triton_config_dir}/ssh"
 
 # Add the root SDC SSH key.

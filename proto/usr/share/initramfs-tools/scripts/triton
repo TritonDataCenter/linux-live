@@ -14,17 +14,26 @@
 #
 
 # Setup the config dir.
+# 
+# Before `sdc-server setup` there is no /opt directory, so we use an in memory
+# config dir under /usr/triton/config.
+# Once `sdc-server setup` completes, the temporary /usr/triton/config contents
+# will be copied to the persisted /opt/triton/config directory, and a symlink
+# is then used to the real persisted directory.
+# All triton tooling/software should use /usr/triton/config/, which should
+# always work regardless of persistence.
 function getTritonConfigDir() {
-    zconfig=$(zfs mount | grep '/zones/config' >/dev/null || echo "not found")
-    triton_config_dir="${rootmnt}/zones/config"
+    zconfig=$(zfs mount | grep '/opt' >/dev/null || echo "not found")
+    triton_config_dir="${rootmnt}/opt/triton/config"
     usr_triton_config_dir="${rootmnt}/usr/triton/config"
 
-    if [ "${zconfig}" == "not found" ]; then
+    if [ "${zconfig}" == "not found" -o ! -d "${triton_config_dir}" ]; then
+        # Create a temporary (in memory) /usr/triton/config dir.
         mkdir -p "${usr_triton_config_dir}"
         triton_config_dir="${usr_triton_config_dir}"
     else
         # Make a symlink for the /usr/triton/config dir.
-        ln -s "/zones/config" "${usr_triton_config_dir}"
+        ln -s "/opt/triton/config" "${usr_triton_config_dir}"
     fi
 
     echo "${triton_config_dir}"

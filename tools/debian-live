@@ -472,7 +472,7 @@ function postinstall {
 
 		find /etc/ssh -name "ssh_host_*key*" -exec rm -f "{}" ";"
 		sed -i \
-		    -e "s,^#HostKey /etc/ssh/,HostKey /zones/config/ssh/," \
+		    -e "s,^#HostKey /etc/ssh/,HostKey /opt/triton/config/ssh/," \
 		    -e "s,^#\(PermitRootLogin prohibit-password\),\1," \
 		    /etc/ssh/sshd_config
 
