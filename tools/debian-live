@@ -370,6 +370,31 @@ function install_usr_triton_cn_agent {
 	'
 }
 
+
+# Install config-agent and the dependencies (nice to have a build of this).
+function install_usr_triton_config_agent {
+	# git -C $scratch clone -b linuxcn https://github.com/joyent/sdc-config-agent
+	# cd $scratch/sdc-config-agent && npm install
+	# cp -rp $scratch/sdc-config-agent $root/usr/triton/
+
+	chroot "$root" bash -c '
+	    PS4="INSTALL_USR_TRITON_CONFIG_AGENT: "
+	    set -xeuo pipefail
+	    export LC_ALL=C
+	    export PATH=/usr/node/bin:$PATH
+
+	    apt install -y git python
+
+	    git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/sdc-config-agent
+	    cd /usr/triton/sdc-config-agent
+	    rm -f package-lock.json
+	    npm install --ignore-scripts
+
+	    # Remove git/python.
+	    apt remove -y git python
+	'
+}
+
 function install_proto {
 	(cd $repo/src && make install)
 
@@ -705,6 +730,7 @@ all_steps=(
     install_usr_triton_helper_scripts
     install_usr_triton_ur_agent
     install_usr_triton_cn_agent
+    install_usr_triton_config_agent
     install_proto
     remove_temporary_packages
     postinstall
