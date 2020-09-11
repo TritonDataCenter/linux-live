@@ -63,7 +63,7 @@ packages+=(openssh-server vim curl less ca-certificates iproute2 man
 # These packages are here to aid in building the image - they are installed
 # temporarily, then later removed.
 temp_build_packages=(gawk alien libblkid-dev uuid-dev libudev-dev libssl-dev
-    zlib1g-dev libaio-dev libattr1-dev libelf-dev python3-setuptools
+    zlib1g-dev libaio-dev libattr1-dev libelf-dev python python3-setuptools
     python3-cffi libffi-dev git build-essential gdebi linux-headers-amd64
     dpkg-dev fakeroot debhelper dkms python3-dev
 )
@@ -196,10 +196,16 @@ function install_live {
 	chroot "$root" apt update
 }
 
-# Install both wanted packages and temporary packages.
+# Install system packages.
 function install_packages {
 	chroot "$root" env DEBIAN_FRONTEND=noninteractive apt install \
-	    "${apt_args[@]}" "${packages[@]}" "${temp_build_packages[@]}"
+	    "${apt_args[@]}" "${packages[@]}"
+}
+
+# Install temporary packages.
+function install_temporary_packages {
+	chroot "$root" env DEBIAN_FRONTEND=noninteractive apt install \
+	    "${apt_args[@]}" "${temp_build_packages[@]}"
 }
 
 # XXX This needs to be reworked so that the ZFS binaries are not part of the
@@ -337,12 +343,7 @@ function install_usr_triton_ur_agent {
 	    export LC_ALL=C
 	    export PATH=/usr/node/bin:$PATH
 
-	    apt install -y git
-
 	    git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/sdc-ur-agent
-
-	    # Remove git/python.
-	    apt remove -y git
 	'
 }
 
@@ -358,18 +359,12 @@ function install_usr_triton_cn_agent {
 	    export LC_ALL=C
 	    export PATH=/usr/node/bin:$PATH
 
-	    apt install -y git python
-
 	    git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/sdc-cn-agent
 	    cd /usr/triton/sdc-cn-agent
 	    rm -f package-lock.json
 	    npm install --ignore-scripts
-
-	    # Remove git/python.
-	    apt remove -y git python
 	'
 }
-
 
 # Install config-agent and the dependencies (nice to have a build of this).
 function install_usr_triton_config_agent {
@@ -383,15 +378,10 @@ function install_usr_triton_config_agent {
 	    export LC_ALL=C
 	    export PATH=/usr/node/bin:$PATH
 
-	    apt install -y git python
-
 	    git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/sdc-config-agent
 	    cd /usr/triton/sdc-config-agent
 	    rm -f package-lock.json
 	    npm install --ignore-scripts
-
-	    # Remove git/python.
-	    apt remove -y git python
 	'
 }
 
@@ -420,6 +410,11 @@ function install_proto {
 	    [[ -z $services ]] && exit 0
 
 	    systemctl enable $services
+
+	    # Symlink common SmartOS locations
+	    if [ -f /usr/triton/bin/sysinfo ]; then
+		ln -s /usr/triton/bin/sysinfo /usr/bin/sysinfo
+	    fi
 	'
 
 }
@@ -725,6 +720,7 @@ all_steps=(
     create_bootstrap
     install_live
     install_packages
+    install_temporary_packages
     build_zfs
     install_usr_triton
     install_usr_triton_helper_scripts
