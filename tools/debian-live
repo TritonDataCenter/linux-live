@@ -365,8 +365,8 @@ function install_usr_triton_cn_agent {
 	    npm install --ignore-scripts
 
 	    # Compat for vmadm tooling.
-	    ln -s /usr/triton/sdc-cn-agent /opt/cn-agent
-	    mkdir /opt/cn-agent/native
+	    # ln -s /usr/triton/sdc-cn-agent /opt/cn-agent
+	    # mkdir /opt/cn-agent/native
 	    mkdir -p /var/triton/vmadm/machines
 	'
 }
@@ -384,7 +384,7 @@ function install_usr_triton_imgadm {
         npm install
 
         # Backward compat for SmartOS tooling.
-        ln -s /usr/triton/node-imgadm /opt/img
+        # ln -s /usr/triton/node-imgadm /opt/img
         ln -s /usr/triton/node-imgadm/sbin/imgadm /usr/triton/bin/imgadm
 	'
 }
@@ -472,7 +472,7 @@ function postinstall {
 
 		find /etc/ssh -name "ssh_host_*key*" -exec rm -f "{}" ";"
 		sed -i \
-		    -e "s,^#HostKey /etc/ssh/,HostKey /opt/triton/config/ssh/," \
+		    -e "s,^#HostKey /etc/ssh/,HostKey /usr/triton/config/ssh/," \
 		    -e "s,^#\(PermitRootLogin prohibit-password\),\1," \
 		    /etc/ssh/sshd_config
 
