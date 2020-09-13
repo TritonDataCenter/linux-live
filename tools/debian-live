@@ -409,6 +409,26 @@ function install_usr_triton_config_agent {
 	'
 }
 
+
+# Install net-agent and the dependencies (nice to have a build of this).
+function install_usr_triton_net_agent {
+	# git -C $scratch clone -b linuxcn https://github.com/joyent/sdc-net-agent
+	# cd $scratch/sdc-net-agent && npm install
+	# cp -rp $scratch/sdc-net-agent $root/usr/triton/
+
+	chroot "$root" bash -c '
+	    PS4="INSTALL_USR_TRITON_NET_AGENT: "
+	    set -xeuo pipefail
+	    export LC_ALL=C
+	    export PATH=/usr/node/bin:$PATH
+
+	    git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/sdc-net-agent
+	    cd /usr/triton/sdc-net-agent
+	    rm -f package-lock.json
+	    npm install --ignore-scripts
+	'
+}
+
 function install_proto {
 	(cd $repo/src && make install)
 
@@ -751,6 +771,7 @@ all_steps=(
     install_usr_triton_ur_agent
     install_usr_triton_cn_agent
     install_usr_triton_config_agent
+    install_usr_triton_net_agent
     install_usr_triton_imgadm
     install_proto
     remove_temporary_packages
