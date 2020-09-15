@@ -48,7 +48,7 @@ zfs_ver=0.8.3
 
 # From https://willhaley.com/blog/custom-debian-live-environment/
 packages=(linux-image-amd64 live-boot systemd-sysv)
-packages+=(net-tools openssh-client)
+packages+=(net-tools openssh-client rsync)
 
 # For systemd-nspawn
 packages+=(systemd-container)
