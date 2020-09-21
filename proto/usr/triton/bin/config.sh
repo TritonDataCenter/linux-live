@@ -1,13 +1,19 @@
 #!/usr/bin/bash
 #
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+#
+# Copyright 2020 Joyent Inc.
+#
+#
 # functions for getting USB headnode config values (intended to be sourced
 # from other scripts)
 #
 # It is also possible to use this to get a JSON hash of the config options using:
 #
 # bash config.sh -json
-#
-# Copyright 2020 Joyent Inc.
 #
 
 # Sets SDC_CONFIG_FILENAME with the location of the config file.
