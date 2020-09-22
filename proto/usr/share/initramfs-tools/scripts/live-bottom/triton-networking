@@ -110,6 +110,11 @@ EOF
         done
     fi
 
+    # Ensure we use triton resolvers to resolve triton domain
+    if [ "$nictag" == "$admin_nic_tag" ]; then
+            echo "Domains=${datacenter_name}.${dns_domain}" >> "${filename}"
+    fi
+
     if [ "$gateway" != "null" ]; then
         echo "[Route]" >> "${filename}"
         echo "Gateway=${gateway}" >> "${filename}"
