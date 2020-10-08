@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/bash
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -15,17 +15,16 @@
 # and update existing agents using agent images.
 
 
-PREREQ="triton-general"
-
-# Pre-script requirements.
-if [ "$1" = "prereqs" ]; then
-    echo "${PREREQ}"
-	exit 0
-fi
-
 export PATH=/bin:/usr/bin:/usr/sbin:/usr/node/bin:/usr/triton/bin
 
-set -euo pipefail
+set -o xtrace
+
+SETUP="$(/usr/triton/bin/sysinfo | /usr/node/bin/json Setup)"
+
+if [[ ${SETUP} == "false" ]]; then
+    echo "Waiting for agents install until CN Setup is complete"
+    exit 0
+fi
 
 ROOT="/opt/smartdc/agents"
 
@@ -159,3 +158,5 @@ if [[ ! -f /usr/lib/systemd/triton-net-agent.service ]]; then
     systemctl enable triton-net-agent
     systemctl start triton-net-agent
 fi
+
+exit 0
