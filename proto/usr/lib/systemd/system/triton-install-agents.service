@@ -1,0 +1,30 @@
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+
+#
+# Copyright 2020 Joyent, Inc.
+#
+
+#
+# This file is delivered as part of the Triton Platform Image.
+#
+# This file is in charge of calling the install-agents script, which will
+# proceed with the setup of cn-agent, config-agent and net-agent into the CN
+#
+
+[Unit]
+Description=Triton install-agents service
+Documentation=https://github.com/joyent/sdc-ur-agent#linuxcn
+After=triton-ur-agent.service
+
+[Service]
+Environment=PATH=/usr/node/bin:/usr/triton/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Type=oneshot
+RemainAfterExit=false
+ExecStart=/usr/triton/bin/install-agents
+
+[Install]
+WantedBy=multi-user.target
