@@ -1,0 +1,26 @@
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+
+#
+# Copyright 2020 Joyent, Inc.
+#
+#
+# Run LXD service (https://linuxcontainers.org/lxd/docs/master/index)
+#
+
+[Unit]
+Description=Linux Containers Service
+Documentation=https://linuxcontainers.org/lxd/docs/master/index
+After=triton-install-lxd.service
+
+[Service]
+Environment=PATH="/usr/node/bin:/usr/triton/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/lxd/bin"
+Environment=LD_LIBRARY_PATH="/usr/local/lxd/deps/sqlite/.libs/:$/usr/local/lxd/deps/libco/:/usr/local/lxd/deps/dqlite/.libs/:/usr/local/lxd/deps/raft/.libs/:${LD_LIBRARY_PATH}"
+Type=simple
+ExecStart=/usr/local/lxd/bin/lxd --group=lxd
+
+[Install]
+WantedBy=multi-user.target

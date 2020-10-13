@@ -63,12 +63,26 @@ packages+=(openssh-server vim curl less ca-certificates iproute2 man
 # agents setup relies into uuid
 packages+=(uuid)
 
+# required by lxd:
+packages+=(iptables apparmor apparmor-profiles apparmor-utils liblxc1 lxc acl autoconf
+    dnsmasq-base libtool rsync pkg-config make tar tcl libuv1 squashfs-tools
+    xz-utils ebtables lvm2 thin-provisioning-tools btrfs-tools
+)
+
 # These packages are here to aid in building the image - they are installed
 # temporarily, then later removed.
 temp_build_packages=(gawk alien libblkid-dev uuid-dev libudev-dev libssl-dev
     zlib1g-dev libaio-dev libattr1-dev libelf-dev python python3-setuptools
     python3-cffi libffi-dev git build-essential gdebi linux-headers-amd64
     dpkg-dev fakeroot debhelper dkms python3-dev
+)
+
+# packages required to build lxd
+temp_build_packages+=(libacl1-dev libcap-dev lxc-dev libuv1-dev)
+
+# These are for the lxd test suite:
+temp_build_packages+=(libapparmor-dev libseccomp-dev libcap-dev gettext
+    uuid-runtime bzr socat sqlite3
 )
 
 # Args added to 'apt install'
@@ -466,6 +480,39 @@ function install_proto {
 
 }
 
+function install_lxd {
+	curl -L https://golang.org/dl/go1.15.2.linux-amd64.tar.gz |
+	    chroot "$root" tar -C /usr/local --no-same-owner -xzf -
+	LXD_RELEASE=lxd-4.0.2
+	curl -L https://github.com/lxc/lxd/releases/download/$LXD_RELEASE/$LXD_RELEASE.tar.gz |
+	    chroot "$root" tar -C /tmp --no-same-owner -xzf -
+	chroot "$root" bash -c '
+	    PS4="BUILD_LXD: "
+	    set -xeuo pipefail
+
+	    export DEBIAN_FRONTEND=noninteractive
+	    export LC_ALL=C
+	    export LXD_RELEASE=/tmp/lxd-4.0.2
+	    export PATH=$PATH:/usr/local/go/bin
+	    cd $LXD_RELEASE
+	    export GOPATH=$(pwd)/_dist
+	    mkdir -p $GOPATH/bin
+	    export GOBIN=$GOPATH/bin
+
+	    make deps
+	    export CGO_CFLAGS="-I${GOPATH}/deps/sqlite/ -I${GOPATH}/deps/libco/ -I${GOPATH}/deps/raft/include/ -I${GOPATH}/deps/dqlite/include/"
+	    export CGO_LDFLAGS="-L${GOPATH}/deps/sqlite/.libs/ -L${GOPATH}/deps/libco/ -L${GOPATH}/deps/raft/.libs -L${GOPATH}/deps/dqlite/.libs/"
+	    export LD_LIBRARY_PATH="${GOPATH}/deps/sqlite/.libs/:${GOPATH}/deps/libco/:${GOPATH}/deps/raft/.libs/:${GOPATH}/deps/dqlite/.libs/"
+	    export CGO_LDFLAGS_ALLOW="-Wl,-wrap,pthread_create"
+
+	    make
+	    mv $(pwd)/_dist /usr/local/lxd
+	    export PATH="$PATH:$GOPATH/bin"
+	    export LD_LIBRARY_PATH="${GOPATH}/deps/sqlite/.libs/:${GOPATH}/deps/libco/:${GOPATH}/deps/raft/.libs/:${GOPATH}/deps/dqlite/.libs/:${LD_LIBRARY_PATH}"
+            rm -Rf /usr/local/go
+	'
+}
+
 function postinstall {
 	# Heavily inspired by mi-debian-hvm/debian-10/late-command
 	chroot "$root" env release="$release" motd="$motd" product="$product" \
@@ -776,6 +823,7 @@ all_steps=(
     install_usr_triton_config_agent
     install_usr_triton_net_agent
     install_usr_triton_imgadm
+    install_lxd
     install_proto
     remove_temporary_packages
     postinstall
