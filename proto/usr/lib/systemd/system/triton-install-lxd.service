@@ -1,0 +1,30 @@
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+
+#
+# Copyright 2020 Joyent, Inc.
+#
+
+#
+# This file is delivered as part of the Triton Platform Image.
+#
+# This file is in charge of calling the install-lxd script, which will
+# proceed with the required LXD configuration into the CN
+#
+
+[Unit]
+Description=Triton install-lxd service
+Documentation=https://linuxcontainers.org/lxd/docs/master/index
+After=network.target zfs.target
+Before=triton-lxd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=false
+ExecStart=/usr/triton/bin/install-lxd
+
+[Install]
+RequiredBy=triton-lxd.service

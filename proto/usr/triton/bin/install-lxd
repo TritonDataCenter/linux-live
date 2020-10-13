@@ -1,0 +1,69 @@
+#!/bin/bash
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+#
+# Copyright 2020 Joyent Inc.
+#
+
+#
+# LXD initial configuration.
+#
+export PATH=/bin:/usr/bin:/usr/sbin:/usr/node/bin:/usr/triton/bin
+
+set -o xtrace
+
+if [ "$(getent group lxd)" == "" ]; then
+        groupadd lxd
+fi
+
+echo "root:1000000:65536" | tee -a /etc/subuid /etc/subgid
+
+
+export PATH="/usr/node/bin:/usr/triton/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/lxd/bin"
+export LD_LIBRARY_PATH="/usr/local/lxd/deps/sqlite/.libs/:/usr/local/lxd/deps/libco/:/usr/local/lxd/deps/dqlite/.libs/:/usr/local/lxd/deps/raft/.libs/:${LD_LIBRARY_PATH}"
+
+# Need to run lxd before we can configure it:
+/usr/local/lxd/bin/lxd --group=lxd &
+
+# Trap the LXD PID just in case we need to kill the process:
+LXDPID=$!
+# Wait for the LXD REST API to be ready before calling `init`
+/usr/local/lxd/bin/lxd waitready
+
+/usr/local/lxd/bin/lxd init --auto
+
+
+MOUNTPOINT="$(zfs get -H mountpoint -o value zones/lxd)"
+if [ ${MOUNTPOINT} != "/zones/lxd" ]; then
+    if [ ${MOUNTPOINT} == "none" ]; then
+        /usr/sbin/zfs set mountpoint=/zones/lxd zones/lxd
+        # I think these are not needed if we mount the previous one
+        # /usr/sbin/zfs list -rH -o name zones/lxd | xargs -L 1 -I@ bash -c "/usr/sbin/zfs set mountpoint=/@ @"
+        # /usr/sbin/zfs list -rH -o name zones/lxd | xargs -L 1 zfs mount
+    else
+        /usr/sbin/zfs create -o mountpoint=zones/lxd zones/lxd
+        /usr/local/lxd/bin/lxc storage create lxd zfs source=zones/lxd
+    fi
+fi
+
+/usr/local/lxd/bin/lxc profile device add default root disk path=/ pool=lxd
+
+# Can safely comment out the next group of commands. These are just to
+# print some output expected to work
+echo "LXD init finished. Displaying default profile."
+/usr/local/lxd/bin/lxc profile show default
+echo "Querying LXD REST API."
+# This should list the default profile using the REST API:
+/usr/bin/curl -s --unix-socket /var/lib/lxd/unix.socket lxd/1.0/profiles/default|json
+
+# Next the triton-lxd.service will start lxd again
+echo "Exiting LXD project"
+/usr/local/lxd/bin/lxd shutdown
+
+# Just in case:
+kill -9 $LXDPID
+
+exit 0
