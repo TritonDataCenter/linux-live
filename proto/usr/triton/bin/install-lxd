@@ -16,11 +16,22 @@ export PATH=/bin:/usr/bin:/usr/sbin:/usr/node/bin:/usr/triton/bin
 set -o xtrace
 
 if [ "$(getent group lxd)" == "" ]; then
-        groupadd lxd
+    groupadd lxd
 fi
 
 echo "root:1000000:65536" | tee -a /etc/subuid /etc/subgid
 
+
+# Before we initialize lxd we need to check if zones/lxd exists, create if
+# needed and mount it as /var/lib/lxd.
+# If it already exists, we don't need to run lxd --init later.
+MOUNTPOINT=$(zfs get -H mountpoint -o value zones/lxd)
+UNINITIALIZED=$?
+if [ $UNINITIALIZED != 0 ]; then
+    /usr/sbin/zfs create -o mountpoint=/var/lib/lxd zones/lxd
+elif [ "${MOUNTPOINT}" != "/var/lib/lxd" ]; then
+    /usr/sbin/zfs set mountpoint=/var/lib/lxd zones/lxd
+fi
 
 export PATH="/usr/node/bin:/usr/triton/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/lxd/bin"
 export LD_LIBRARY_PATH="/usr/local/lxd/deps/sqlite/.libs/:/usr/local/lxd/deps/libco/:/usr/local/lxd/deps/dqlite/.libs/:/usr/local/lxd/deps/raft/.libs/:${LD_LIBRARY_PATH}"
@@ -33,22 +44,21 @@ LXDPID=$!
 # Wait for the LXD REST API to be ready before calling `init`
 /usr/local/lxd/bin/lxd waitready
 
-/usr/local/lxd/bin/lxd init --auto
-
-MOUNTPOINT=$(zfs get -H mountpoint -o value zones/lxdpool)
+if [ $UNINITIALIZED != 0 ]; then
+    /usr/local/lxd/bin/lxd init --auto
+fi
+# Mountpoint will probably be "none", which is expected due to the way
+# lxc handles zfs datasets. We only need to create the dataset if we
+# get an error running the command.
+POOLCREATED=$(zfs list -H -o mountpoint zones/lxdpool)
 if [ $? != 0 ]; then
-        /usr/sbin/zfs create -o mountpoint=/zones/lxdpool zones/lxdpool
-        /usr/local/lxd/bin/lxc storage create lxdpool zfs source=zones/lxdpool
-else
-        if [ "${MOUNTPOINT}" != "/zones/lxdpool" ]; then
-            if [ "${MOUNTPOINT}" == "none" ]; then
-                /usr/sbin/zfs list -rH -o name zones/lxdpool | xargs -L 1 -I@ bash -c "/usr/sbin/zfs set mountpoint=/@ @"
-            fi
-        fi
+    /usr/sbin/zfs create -o mountpoint=/zones/lxdpool zones/lxdpool
+    /usr/local/lxd/bin/lxc storage create lxdpool zfs source=zones/lxdpool
+
+    /usr/local/lxd/bin/lxc profile device remove default root
+    /usr/local/lxd/bin/lxc profile device add default root disk path=/ pool=lxdpool
 fi
 
-/usr/local/lxd/bin/lxc profile device remove default root
-/usr/local/lxd/bin/lxc profile device add default root disk path=/ pool=lxdpool
 
 # Can safely comment out the next group of commands. These are just to
 # print some output expected to work
