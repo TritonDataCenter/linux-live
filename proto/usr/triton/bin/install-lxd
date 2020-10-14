@@ -35,21 +35,20 @@ LXDPID=$!
 
 /usr/local/lxd/bin/lxd init --auto
 
-
-MOUNTPOINT="$(zfs get -H mountpoint -o value zones/lxd)"
-if [ ${MOUNTPOINT} != "/zones/lxd" ]; then
-    if [ ${MOUNTPOINT} == "none" ]; then
-        /usr/sbin/zfs set mountpoint=/zones/lxd zones/lxd
-        # I think these are not needed if we mount the previous one
-        # /usr/sbin/zfs list -rH -o name zones/lxd | xargs -L 1 -I@ bash -c "/usr/sbin/zfs set mountpoint=/@ @"
-        # /usr/sbin/zfs list -rH -o name zones/lxd | xargs -L 1 zfs mount
-    else
-        /usr/sbin/zfs create -o mountpoint=zones/lxd zones/lxd
-        /usr/local/lxd/bin/lxc storage create lxd zfs source=zones/lxd
-    fi
+MOUNTPOINT=$(zfs get -H mountpoint -o value zones/lxdpool)
+if [ $? != 0 ]; then
+        /usr/sbin/zfs create -o mountpoint=/zones/lxdpool zones/lxdpool
+        /usr/local/lxd/bin/lxc storage create lxdpool zfs source=zones/lxdpool
+else
+        if [ "${MOUNTPOINT}" != "/zones/lxdpool" ]; then
+            if [ "${MOUNTPOINT}" == "none" ]; then
+                /usr/sbin/zfs list -rH -o name zones/lxdpool | xargs -L 1 -I@ bash -c "/usr/sbin/zfs set mountpoint=/@ @"
+            fi
+        fi
 fi
 
-/usr/local/lxd/bin/lxc profile device add default root disk path=/ pool=lxd
+/usr/local/lxd/bin/lxc profile device remove default root
+/usr/local/lxd/bin/lxc profile device add default root disk path=/ pool=lxdpool
 
 # Can safely comment out the next group of commands. These are just to
 # print some output expected to work
