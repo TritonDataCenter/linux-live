@@ -301,7 +301,7 @@ function install_usr_triton {
 	    ln -sf triton/node /usr/
 
 	    # Install common node modules.
-	    npm install -g manta json bunyan assert-plus
+	    npm install --production -g manta json bunyan assert-plus
 
 	    # Symlink lib/node to ensure global node_modules is on the require path.
 	    # XXX - why is this node_modules not already on the nodejs require path?
@@ -379,7 +379,7 @@ function install_usr_triton_cn_agent {
 	    git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/sdc-cn-agent
 	    cd /usr/triton/sdc-cn-agent
 	    rm -f package-lock.json
-	    npm install --ignore-scripts
+	    npm install --production --ignore-scripts
 
 	    # Compat for vmadm tooling.
 	    # ln -s /usr/triton/sdc-cn-agent /opt/cn-agent
@@ -398,7 +398,7 @@ function install_usr_triton_imgadm {
 
         git -C /usr/triton/ clone https://github.com/joyent/node-imgadm
         cd /usr/triton/node-imgadm
-        npm install
+        npm install --production
 
         # Backward compat for SmartOS tooling.
         # ln -s /usr/triton/node-imgadm /opt/img
@@ -422,7 +422,7 @@ function install_usr_triton_config_agent {
 	    git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/sdc-config-agent
 	    cd /usr/triton/sdc-config-agent
 	    rm -f package-lock.json
-	    npm install --ignore-scripts
+	    npm install --production --ignore-scripts
 	'
 }
 
@@ -442,7 +442,7 @@ function install_usr_triton_net_agent {
 	    git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/sdc-net-agent
 	    cd /usr/triton/sdc-net-agent
 	    rm -f package-lock.json
-	    npm install --ignore-scripts
+	    npm install --production --ignore-scripts
 	'
 }
 
