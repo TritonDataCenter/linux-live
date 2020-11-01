@@ -38,11 +38,6 @@ debver=buster
 name="Debian 10"
 docurl=https://github.com/joyent/linux-live
 
-# Where does /usr/node come from?
-manta_url=${MANTA_URL:-https://us-east.manta.joyent.com}
-node_manta_dir=/Joyent_Dev/public/bits/linuxcn
-node_archive=sdcnode-v8.16.1-linux-63d6e664-3f1f-11e8-aef6-a3120cf8dd9d-linuxcn-20191231T144917Z-gdd5749b.tgz
-
 ntp=0.debian.pool.ntp.org
 zfs_ver=0.8.3
 
@@ -62,6 +57,9 @@ packages+=(openssh-server vim curl less ca-certificates iproute2 man
 
 # Agents build relies on uuid.
 packages+=(uuid)
+
+# NodeJS
+packages+=(nodejs)
 
 # required by lxd:
 packages+=(iptables apparmor apparmor-profiles apparmor-utils liblxc1 lxc acl autoconf
@@ -210,6 +208,13 @@ function install_live {
 	Pin-Priority: 990
 	EOF
 
+	chroot "$root" tee /etc/apt/sources.list.d/nodesource.list \
+	    >/dev/null<<-EOF
+	# https://github.com/nodesource/distributions#installation-instructions
+	deb https://deb.nodesource.com/node_14.x buster main
+	deb-src https://deb.nodesource.com/node_14.x buster main
+	EOF
+
 	chroot "$root" apt update
 }
 
@@ -289,27 +294,25 @@ function remove_temporary_packages {
 # /usr/triton.
 function install_usr_triton {
 	chroot "$root" mkdir -p /usr/triton/bin
-	curl "$manta_url/$node_manta_dir/$node_archive" |
-	    chroot "$root" tar -C /usr/triton --no-same-owner -xzf -
 	chroot "$root" bash -c '
 	    PS4="INSTALL_USR_TRITON: "
 	    set -xeuo pipefail
 	    export LC_ALL=C
-	    export PATH=/usr/node/bin:$PATH
-
-	    # Create /usr/node shortcut.
-	    ln -sf triton/node /usr/
 
 	    # Install common node modules.
 	    npm install --production -g manta json bunyan assert-plus
 
 	    # Symlink lib/node to ensure global node_modules is on the require path.
 	    # XXX - why is this node_modules not already on the nodejs require path?
-	    cd /usr/triton/node/lib && ln -s node_modules node
+	    # This is a long explanation. Can do some reading on node docs for details:
+	    # https://nodejs.org/api/modules.html#modules_loading_from_the_global_folders
+	    # Note we should be doing this instead where a global module is required:
+	    # export NODE_PATH=/usr/lib/node_modules
+	    cd /usr/lib && ln -s node_modules node
 
 	    # A lot of triton node scripts use modules from /usr/node/node_modules,
 	    # so we keep that compatability (for mkzpool, disklayout and friends).
-	    ln -sf /usr/node/lib/node /usr/node/node_modules
+	    ln -sf /usr/lib/node /usr/node/node_modules
 	'
 }
 
@@ -330,14 +333,14 @@ function install_usr_triton_helper_scripts {
 	    # node-getopt
 	    git -C /usr/triton clone https://github.com/joyent/node-getopt
 	    mv /usr/triton/node-getopt/lib/getopt.js \
-		/usr/triton/node/lib/node_modules/
+		/usr/lib/node_modules/
 	    rm -rf /usr/triton/node-getopt
 
 	    # node-zfs
 	    # Note: required for disklayout, mkzpool.
 	    git -C /usr/triton clone -b linuxcn https://github.com/joyent/node-zfs
 	    mv /usr/triton/node-zfs/lib/*.js \
-		/usr/triton/node/lib/node_modules/
+		/usr/lib/node_modules/
 	    rm -rf /usr/triton/node-zfs
 
 	    # disklayout
@@ -358,7 +361,6 @@ function install_usr_triton_ur_agent {
 	    PS4="INSTALL_USR_TRITON_UR_AGENT: "
 	    set -xeuo pipefail
 	    export LC_ALL=C
-	    export PATH=/usr/node/bin:$PATH
 
 	    git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/sdc-ur-agent
 	    # Install a fake image_uuid (remove when we have a proper build).
@@ -376,7 +378,6 @@ function install_usr_triton_cn_agent {
 	    PS4="INSTALL_USR_TRITON_CN_AGENT: "
 	    set -xeuo pipefail
 	    export LC_ALL=C
-	    export PATH=/usr/node/bin:$PATH
 
 	    git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/sdc-cn-agent
 	    cd /usr/triton/sdc-cn-agent
@@ -398,7 +399,6 @@ function install_usr_triton_imgadm {
         PS4="INSTALL_USR_TRITON_IMGADM: "
         set -xeuo pipefail
         export LC_ALL=C
-        export PATH=/usr/node/bin:$PATH
 
         git -C /usr/triton/ clone https://github.com/joyent/node-imgadm
         cd /usr/triton/node-imgadm
@@ -423,7 +423,6 @@ function install_usr_triton_config_agent {
 	    PS4="INSTALL_USR_TRITON_CONFIG_AGENT: "
 	    set -xeuo pipefail
 	    export LC_ALL=C
-	    export PATH=/usr/node/bin:$PATH
 
 	    git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/sdc-config-agent
 	    cd /usr/triton/sdc-config-agent
@@ -445,7 +444,6 @@ function install_usr_triton_net_agent {
 	    PS4="INSTALL_USR_TRITON_NET_AGENT: "
 	    set -xeuo pipefail
 	    export LC_ALL=C
-	    export PATH=/usr/node/bin:$PATH
 
 	    git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/sdc-net-agent
 	    cd /usr/triton/sdc-net-agent
@@ -463,7 +461,6 @@ function install_usr_triton_metadata {
         PS4="INSTALL_USR_TRITON_METADATA: "
         set -xeuo pipefail
         export LC_ALL=C
-        export PATH=/usr/node/bin:$PATH
 
         git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/triton-metadata
         cd /usr/triton/triton-metadata
@@ -480,7 +477,6 @@ function install_usr_triton_vminfod {
         PS4="INSTALL_USR_TRITON_VMINFOD: "
         set -xeuo pipefail
         export LC_ALL=C
-        export PATH=/usr/node/bin:$PATH
 
         git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/triton-vminfod
         cd /usr/triton/triton-vminfod
