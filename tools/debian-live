@@ -208,13 +208,7 @@ function install_live {
 	Pin-Priority: 990
 	EOF
 
-	chroot "$root" tee /etc/apt/sources.list.d/nodesource.list \
-	    >/dev/null<<-EOF
-	# https://github.com/nodesource/distributions#installation-instructions
-	deb https://deb.nodesource.com/node_14.x buster main
-	deb-src https://deb.nodesource.com/node_14.x buster main
-	EOF
-
+	curl -sL https://deb.nodesource.com/setup_14.x | chroot "$root" bash -
 	chroot "$root" apt update
 }
 
@@ -312,7 +306,9 @@ function install_usr_triton {
 
 	    # A lot of triton node scripts use modules from /usr/node/node_modules,
 	    # so we keep that compatability (for mkzpool, disklayout and friends).
+	    mkdir -p /usr/node
 	    ln -sf /usr/lib/node /usr/node/node_modules
+	    ln -sf /usr/bin/node /usr/node/bin/node
 	'
 }
 
