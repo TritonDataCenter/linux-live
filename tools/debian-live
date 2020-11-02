@@ -306,7 +306,7 @@ function install_usr_triton {
 
 	    # A lot of triton node scripts use modules from /usr/node/node_modules,
 	    # so we keep that compatability (for mkzpool, disklayout and friends).
-	    mkdir -p /usr/node
+	    mkdir -p /usr/node/bin
 	    ln -sf /usr/lib/node /usr/node/node_modules
 	    ln -sf /usr/bin/node /usr/node/bin/node
 	'
