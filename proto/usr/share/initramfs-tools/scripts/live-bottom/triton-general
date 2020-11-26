@@ -48,6 +48,10 @@ if [ ! -d "${rootmnt}/root/.ssh" ]; then
     mkdir -p "${rootmnt}/root/.ssh"
 fi
 
+# Set the imgadm config dir (so imgadm images/config will be persisted).
+mkdir -p /usr/triton/config/imgadm
+ln -s /usr/triton/config/imgadm /var/imgadm
+
 log_end_msg
 
 exit 0
