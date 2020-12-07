@@ -384,6 +384,7 @@ function install_usr_triton_cn_agent {
 	    # ln -s /usr/triton/sdc-cn-agent /opt/cn-agent
 	    # mkdir /opt/cn-agent/native
 	    mkdir -p /var/triton/vmadm/machines
+	    ln -s /usr/triton/sdc-cn-agent/node_modules/vmadm/bin/vmadm /usr/triton/bin/vmadm
 	'
 }
 
