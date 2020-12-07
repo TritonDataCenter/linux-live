@@ -394,7 +394,7 @@ function install_usr_triton_imgadm {
         set -xeuo pipefail
         export LC_ALL=C
 
-        git -C /usr/triton/ clone https://github.com/joyent/node-imgadm
+        git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/node-imgadm
         cd /usr/triton/node-imgadm
         npm install --production
         # Install a fake image_uuid (remove when we have a proper build).
