@@ -63,7 +63,7 @@ packages+=(nodejs)
 
 # required by lxd:
 packages+=(iptables apparmor apparmor-profiles apparmor-utils liblxc1 lxc acl autoconf
-    dnsmasq-base libtool rsync pkg-config make tar tcl libuv1 squashfs-tools
+    dnsmasq-base git libtool rsync pkg-config make tar tcl libuv1 squashfs-tools
     xz-utils ebtables lvm2 thin-provisioning-tools btrfs-tools
 )
 
@@ -71,7 +71,7 @@ packages+=(iptables apparmor apparmor-profiles apparmor-utils liblxc1 lxc acl au
 # temporarily, then later removed.
 temp_build_packages=(gawk alien libblkid-dev uuid-dev libudev-dev libssl-dev
     zlib1g-dev libaio-dev libattr1-dev libelf-dev python python3-setuptools
-    python3-cffi libffi-dev git build-essential gdebi linux-headers-amd64
+    python3-cffi libffi-dev build-essential gdebi linux-headers-amd64
     dpkg-dev fakeroot debhelper dkms python3-dev
 )
 
