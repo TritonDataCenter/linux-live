@@ -8,4 +8,4 @@
 # Copyright 2020 Joyent, Inc.
 #
 
-PATH=/usr/node/bin:/usr/triton/bin:$PATH
+PATH=/usr/node/bin:/usr/triton/bin:$PATH:/usr/local/lxd/bin
