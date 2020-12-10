@@ -40,6 +40,14 @@ if [ -f "${node_config_file}" ]; then
     echo "root:$root_shadow" | /usr/sbin/chpasswd -e --root "${rootmnt}"
 fi
 
+# This systemd env file is used by Triton systemd service files. It contains
+# configuration settings (PATH settings) for Triton components.
+triton_systemd_env_file="${triton_config_dir}/systemd.env"
+if [ -f "${triton_systemd_env_file}" ]; then
+    # Copy the default file into place.
+    cp "${rootmnt}/usr/triton/defaults/systemd.env" "${triton_config_dir}"
+fi
+
 # Ensure the $triton/config/ssh dir exists, so we can store ssh host keys here.
 mkdir -p "${triton_config_dir}/ssh"
 
