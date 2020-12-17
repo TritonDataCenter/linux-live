@@ -43,7 +43,7 @@ fi
 # This systemd env file is used by Triton systemd service files. It contains
 # configuration settings (PATH settings) for Triton components.
 triton_systemd_env_file="${triton_config_dir}/systemd.env"
-if [ -f "${triton_systemd_env_file}" ]; then
+if [ ! -f "${triton_systemd_env_file}" ]; then
     # Copy the default file into place.
     cp "${rootmnt}/usr/triton/defaults/systemd.env" "${triton_config_dir}"
 fi
