@@ -33,7 +33,9 @@ function getTritonConfigDir() {
         triton_config_dir="${usr_triton_config_dir}"
     else
         # Make a symlink for the /usr/triton/config dir.
-        ln -s "/opt/triton/config" "${usr_triton_config_dir}"
+        if [ ! -e ${usr_triton_config_dir} ]; then
+            ln -s "/opt/triton/config" "${usr_triton_config_dir}"
+        fi
     fi
 
     echo "${triton_config_dir}"
