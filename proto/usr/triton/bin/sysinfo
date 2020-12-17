@@ -1,7 +1,24 @@
-#!/usr/node/bin/node
+#!/usr/bin/env node
 
-var sysinfo = require('/usr/triton/sdc-cn-agent/lib/backends/linux/sysinfo');
+// Try the default cn-agent paths.
+var tryPaths = [
+    '/opt/smartdc/agents/lib/node_modules/cn-agent/lib/backends/linux/sysinfo',
+    '/usr/triton/bits/agents/cn-agent/lib/backends/linux/sysinfo'
+];
+
+var sysinfo;
+
+if (!tryPaths.some(function _importSysinfo(path) {
+    try {
+        sysinfo = require(path);
+        return true
+    } catch (ex) {
+    }
+})) {
+    console.error('Unable to import sysinfo module');
+    process.exit(1);
+}
+
 sysinfo.sysInfo(null, function (err, info) {
     console.log(JSON.stringify(info, null, 2))
 });
-
