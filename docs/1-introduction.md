@@ -68,11 +68,11 @@ in the same manner as SmartOS.
 
 ## Installation
 
-Follow the (Linux CN Installation)[5-triton-updates.md] steps to create a Linux
+Follow the [Linux CN Installation](5-triton-updates.md) steps to create a Linux
 compute node.
 
 ## Design docs
 
-* (Platform Images)[2-platform-image.md]
-* (Systemd Integration)[3-systemd-integration.md]
-* (ZFS)[4-zfs.md]
+* [Platform Images](2-platform-image.md)
+* [Systemd Integration](3-systemd-integration.md)
+* [ZFS](4-zfs.md)
