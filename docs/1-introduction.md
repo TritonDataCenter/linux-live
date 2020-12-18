@@ -35,10 +35,12 @@ are used in SmartOS.  A quick mapping is as follows:
 |--------------------------|-----------------------|------------------------------------------|
 | SMF                      | systemd               | systemd has taken over more of the world than SMF has in SmartOS. |
 | ZFS                      | ZFS                   | Due to licensing constraints, ZFS is distributed only as source code |
-| zoneadmd                 | systemd.nspawnd       | systemd allows a service per container   |
-| `zoneadm -z $i boot`     | `systemctl start triton-instance@$i` | Instances defined based on a template service. `machinectl start $i` is almost there, but not quite. |
-| `zoneadm -z $i shutdown` | `systemctl stop triton-isnstance@$i` or `machinectl stop $i` |   |
-| `zlogin $i`              | `machinectl login $i` | This likely requires authentication      |
+| `vmadm action`           | `vmadm action`        | Some actions on Linux will be unsupported |
+| `imgadm action`          | `imgadm action`       | Some actions on Linux will be unsupported |
+| zoneadmd                 | lxc                   | Linux container service |
+| `zoneadm -z $i boot`     | `lxc start triton-$i` | Instance actions are performed through lxc/lxd |
+| `zoneadm -z $i shutdown` | `lxc stop triton-$i`  | Same |
+| `zlogin $i`              | `lxc console triton-$i` or `lxc exec triton-$i` | |
 
 Of course, these will all be wrapped in Triton APIs and familiar CLIs that call
 those APIs so it will all be the same from the Triton perspective.
@@ -61,7 +63,16 @@ running Linux containers only.  Specifically excluded are:
 
 As much as possible, Linux compute nodes will run the same agents that are run
 on SmartOS.  The agents are delivered from the same repositories with the same
-versioning scheme.  Unlike SmartOS CNs, Linux CNs do not contain complex
-programs like `vmadm` or `imgadm`.  Rather, Linux CNs have thin CLIs that call
-the local agents or use the libraries that accompany locally installed agents.
-The agents will make direct use of Linux APIs and CLIs.
+versioning scheme.  Tools like `vmadm` and `imgadm` will be available and work
+in the same manner as SmartOS.
+
+## Installation
+
+Follow the (Linux CN Installation)[5-triton-updates.md] steps to create a Linux
+compute node.
+
+## Design docs
+
+* (Platform Images)[2-platform-image.md]
+* (Systemd Integration)[3-systemd-integration.md]
+* (ZFS)[4-zfs.md]

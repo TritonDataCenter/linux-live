@@ -61,62 +61,65 @@ in the root file system so that systemd and perhaps other components can make
 use of them.  For instance, persistent network configuration is likely to reside
 in `/etc/systemd/network`.
 
-The current plan of record is to create a hierarchy under `triton/system` such
+The current plan is to create a hierarchy under the `zones` root, with file
+systems under that mounting over directories in the root file system, using a
+similar layout as SmartOS.
+
+Some examples:
+
+```
+zfs create -o mountpoint=/zones zones
+zfs create -o mountpoint=/opt zones/opt
+zfs create -o mountpoint=/var/lib/lxd zones/lxd
+```
+
+### Alternative mounting
+
+An alternative plan is to create a hierarchy under `zones/system` such
 that file systems under that are automatically mounted over directories in the
 root file system.
 
-The top-level is created as:
-
 ```
-# zfs create -o canmount=noauto -o mountpoint=/ triton/system
+zfs create -o canmount=noauto -o mountpoint=/ zones/system
 ```
 
 Now, datasets under that dataset automatically get the right mountpoint.  For
 example, this will create the file system that gets mounted at `/opt`.
 
 ```
-# zfs create triton/system/opt
+zfs create zones/system/opt
 ```
 
 When needing to create a spot in the directory hierarchy that shouldn't get
 mounted over the root file system, just set `canmount=noauto`.
 
 ```
-# zfs create -o canmount=noauto triton/system/etc
-# zfs create -o canmount=noauto triton/system/etc/systemd
-# zfs create triton/system/etc/systemd/network
+# Create the root
+zfs create -o canmount=noauto -o mountpoint=/ zones/system
 
-# zfs create -o canmount=noauto triton/system/var
-# zfs create triton/system/var/imgadm
-# zfs create triton/system/var/ssh
+# Create intermediate points that will not be mounted using noauto
+zfs create -o canmount=noauto zones/system/etc
+zfs create -o canmount=noauto zones/system/etc/systemd
+# Now create the actual mount point for "/etc/systemd/network"
+zfs create zones/system/etc/systemd/network
+
+# Other examples:
+zfs create -o canmount=noauto zones/system/var
+zfs create zones/system/var/imgadm
+zfs create zones/system/var/ssh
 ```
 
-As a single script:
+### Other possible mountpoints
 
-```
-zfs create -o canmount=noauto -o mountpoint=/ triton/system
-zfs create triton/system/opt
-zfs create -o canmount=noauto triton/system/etc
-zfs create -o canmount=noauto triton/system/etc/systemd
-zfs create triton/system/etc/systemd/network
-zfs create -o canmount=noauto triton/system/var
-zfs create triton/system/var/imgadm
-zfs create triton/system/var/ssh
-```
-
-### Standard datasets and mount points
-
-| Mountpoint           | ZFS Filesystem                 | Notes                |
-|----------------------|--------------------------------|----------------------|
-| /etc/systemd/network | triton/platform/etc/systemd/network | [systemd.network](https://systemd.network/systemd.network.html) |
-| /etc/sysusers.d      | triton/platform/etc/sysusers.d | [systemd.sysusers.d](https://www.freedesktop.org/software/systemd/man/sysusers.d.html) |
-| /home                | triton/platform/home           | Useful for developers home dirs, maybe useful for customers requiring non-root system users. Use in conjunction with `/etc/sysusers.d`. |
-| /opt                 | triton/platform/opt            | Likely location of installed agents. |
-| /root                | triton/platform/root           | Persistent root dir helpful for `authorized_keys` and such. |
-| /triton              | triton                         | Default mount point for pool.  Maybe we shouldn't mount it? |
-| /var/imgadm          | triton/platform/var/imgadm     | Image manifests and such. |
-| /var/lib/machines/\* | triton/:instance\_uuid         | /var/lib/machines helps with [machinectl] integration |
-| /var/ssh             | triton/platform/var/ssh        | SSH keys |
+| Mountpoint           | ZFS Filesystem              | Notes                |
+|----------------------|-----------------------------|----------------------|
+| /etc/systemd/network | zones/system/etc/systemd/network | [systemd.network](https://systemd.network/systemd.network.html) |
+| /etc/sysusers.d      | zones/system/etc/sysusers.d | [systemd.sysusers.d](https://www.freedesktop.org/software/systemd/man/sysusers.d.html) |
+| /home                | zones/system/home           | Useful for developers home dirs, maybe useful for customers requiring non-root system users. Use in conjunction with `/etc/sysusers.d`. |
+| /opt                 | zones/system/opt            | Likely location of installed agents. |
+| /root                | zones/system/root           | Persistent root dir helpful for `authorized_keys` and such. |
+| /var/imgadm          | zones/system/var/imgadm     | Image manifests and such. |
+| /var/ssh             | zones/system/var/ssh        | System SSH keys |
 
 ## Boot integration
 

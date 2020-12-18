@@ -66,8 +66,8 @@ Where the service directories are:
   delivered by the distribution's packages.
 - `/run/systemd/system`: Dynamically generated at run-time and not persisted
   across reboots.
-- `/etc/systemd/system`: Under the administrator's control.  This is mounted
-  from the system ZFS pool very early in boot.
+- `/etc/systemd/system`: Under the administrator's control.  This will be
+  mounted from the system ZFS pool very early in boot, allowing persistence.
 
 ### Best practices
 
