@@ -3,7 +3,7 @@
 // Try the default cn-agent paths.
 var tryPaths = [
     '/opt/smartdc/agents/lib/node_modules/cn-agent/lib/backends/linux/sysinfo',
-    '/usr/triton/bits/agents/cn-agent/lib/backends/linux/sysinfo'
+    '/usr/triton/defaults/agents/cn-agent/lib/backends/linux/sysinfo'
 ];
 
 var sysinfo;

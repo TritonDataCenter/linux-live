@@ -1,0 +1,260 @@
+#!/bin/bash
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+
+#
+# Copyright 2021 Joyent, Inc.
+#
+
+#
+# We must load the SDC configuration before setting any strict error handling
+# options.
+#
+. /usr/triton/bin/config.sh
+load_sdc_config
+
+ROOT="$(cd `dirname $0`/../ 2>/dev/null && pwd)"
+
+. "${ROOT}/lib/error_handler.sh"
+. "${ROOT}/lib/trace_logger.sh"
+
+set -o nounset
+
+function usage
+{
+    echo "Usage: install-one-agent  AGENT_NAME  AGENT_DIR"
+    exit 1
+}
+
+if [[ $# -ne 2 ]]; then
+    usage
+fi
+
+AGENT=$1
+AGENT_DIR=$2
+
+if [[ $AGENT == "-h" || $AGENT_DIR == "-h" ]]; then
+    usage
+fi
+
+if [[ ! -d $AGENT_DIR ]]; then
+    echo "Agent directory does not exist: $AGENT_DIR"
+    exit 1
+fi
+
+# Ur-agent does not get registered with SAPI.
+if [[ $AGENT == "ur-agent" ]]; then
+    echo "Ur-agent cannot be registered"
+    exit 1
+fi
+
+if [[ ! -d $AGENT_DIR ]]; then
+# SAPI details
+if [[ -z "${CONFIG_sapi_domain}" ]]; then
+    fatal '"sapi_domain" was not found in "node.config".'
+fi
+SAPI_URL="http://${CONFIG_sapi_domain}"
+
+ETC_DIR="/opt/smartdc/agents/etc"
+
+CMD_UUID_V4="/usr/bin/uuid -v4"
+
+# ---- support functions
+
+#
+# Import any systemd services.
+#
+function import_systemd_services
+{
+    local SERVICE_NAME
+
+    if [[ ! -d ${AGENT_DIR}/systemd ]]; then
+        return 0
+    fi
+
+    for SERVICE_NAME in $(ls -A "${AGENT_DIR}/systemd")
+    do
+        if [[ ${SERVICE_NAME} == *.service ]]; then
+            cp ${AGENT_DIR}/systemd/${SERVICE_NAME} /usr/lib/systemd/system/${SERVICE_NAME}
+            systemctl enable ${SERVICE_NAME}
+            systemctl start ${SERVICE_NAME}
+        fi
+    done
+}
+
+
+#
+#
+# Each installation of an agent is represented by a SAPI instance of the SAPI
+# service for that agent.  These UUIDs are persistent, so that upgrades do not
+# induce the generation of a new UUID.  If a UUID has not yet been written to
+# disk, we generate one now.  Otherwise, the existing UUID is read and
+# returned.
+#
+function get_or_create_instance_uuid
+{
+    local uuid_file="${ETC_DIR}/${AGENT}"
+    local uuid
+
+    if [[ -z "${ETC_DIR}" || -z "${AGENT}" ]]; then
+        fatal 'ETC_DIR and AGENT must be set'
+    fi
+
+    if [[ ! -f "${uuid_file}" ]]; then
+        #
+        # The instance UUID file does not exist.  Create one.
+        #
+        printf 'New agent instance.  Generating new UUID.\n' >&2
+        if ! uuid=$(${CMD_UUID_V4}); then
+            fatal 'could not create a new UUID'
+        fi
+        echo "$uuid" > "${uuid_file}"
+    fi
+
+    if ! uuid="$(<${uuid_file})" || [[ -z "${uuid}" ]]; then
+            fatal 'could not read UUID from "%s"' "${uuid_file}"
+    fi
+
+    printf 'Agent UUID: %s\n' "${uuid}" >&2
+    printf '%s' "${uuid}"
+    return 0
+}
+
+function adopt_instance
+{
+    local instance_uuid=$1
+    local service_uuid
+    local retry=10
+    local url
+    local data
+
+    if [[ -z "${instance_uuid}" ]]; then
+        fatal 'must pass instance_uuid'
+    fi
+
+    while (( retry-- > 0 )); do
+        #
+        # Fetch the UUID of the SAPI service for this agent.
+        #
+        url="${SAPI_URL}/services?type=agent&name=${AGENT}"
+        if ! service_uuid="$(curl -sSf -H 'Accept: application/json' "${url}" \
+          | json -Ha uuid)"; then
+            printf 'Could not retrieve SAPI service UUID for "%s"\n' \
+              "${AGENT}" >&2
+            sleep 5
+            continue
+        fi
+
+        #
+        # Attempt to register the SAPI instance for this agent installation.
+        # We need not be overly clever here; SAPI returns success for a
+        # duplicate agent adoption.
+        #
+        url="${SAPI_URL}/instances"
+        data="{
+            \"service_uuid\": \"${service_uuid}\",
+            \"uuid\": \"${instance_uuid}\"
+        }"
+        if ! curl -sSf -X POST -H 'Content-Type: application/json' \
+          -d "${data}" "${url}"; then
+            printf 'Could not register SAPI instance with UUID "%s"\n' \
+              "${instance_uuid}" >&2
+            sleep 5
+            continue
+        fi
+
+        printf 'Agent successfully adopted into SAPI.\n' >&2
+        return 0
+    done
+
+    fatal 'adopt_instance: failing after too many retries'
+}
+
+#
+# The "config-agent" service reads configuration from JSON-formatted files in a
+# well-known local directory.  These configuration files tell "config-agent"
+# where to find local SAPI manifests describing the configuration for this
+# agent.
+#
+function add_config_agent_instance
+{
+    local instance_uuid="${1}"
+    local config_etc_dir="${ETC_DIR}/config-agent.d"
+    local agent_json="${config_etc_dir}/${AGENT}.json"
+    local data
+
+    if [[ -z "${instance_uuid}" ]]; then
+        fatal 'must pass in instance_uuid'
+    fi
+
+    mkdir -p "$config_etc_dir"
+
+    data="{
+        \"instance\": \"${instance_uuid}\",
+        \"localManifestDirs\": [
+            \"${ROOT}\"
+        ]
+    }"
+    if ! printf '%s' "${data}" | json >"${agent_json}"; then
+        fatal 'could not write configuration for "config-agent" (%s)' \
+          "${agent_json}"
+    fi
+
+    return 0
+}
+
+#
+# If there is an installed, running, instance of "config-agent", then restart
+# it now.  This ensures that config-agent will notice the addition of any local
+# manifests that we just installed.
+#
+function config_agent_restart
+{
+    if [[ "$(/usr/bin/systemctl is-active triton-config-agent)" == "active" ]]; then
+        /usr/bin/systemctl reload-or-restart triton-config-agent
+    fi
+
+    return 0
+}
+
+#
+# Check if we expect SAPI to be available.  Generally, registering with SAPI is
+# a hard requirement for the correct functioning of the system, but this
+# postinstall script can also be run during headnode setup; SAPI is not yet
+# available at that point.
+#
+function sapi_should_be_available
+{
+    # In the event that SAPI is unavailable, we allow the operator to force us
+    # not to register with SAPI.  This behaviour should NOT be exercised
+    # programatically; it exists purely to allow operators to attempt
+    # (manually) to correct in the face of an abject failure of the system.
+    if [[ "${NO_SAPI:-false}" = true ]]; then
+        printf 'NO_SAPI=true in environment.\n' >&2
+        return 1
+    fi
+
+    return 0
+}
+
+
+# ---- mainline
+
+import_systemd_services
+
+INSTANCE_UUID="$(get_or_create_instance_uuid)"
+
+if sapi_should_be_available; then
+    printf 'SAPI expected to be available.  Adopting agent instance.\n' >&2
+    adopt_instance "${INSTANCE_UUID}"
+else
+    printf 'SAPI not yet available.  Skipping agent registration.\n' >&2
+fi
+
+add_config_agent_instance "${INSTANCE_UUID}"
+config_agent_restart
+
+exit 0

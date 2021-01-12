@@ -1,0 +1,69 @@
+#!/bin/bash
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+#
+# Copyright 2021 Joyent Inc.
+#
+
+# Install triton agents. This is called during sdc-server setup.
+#
+# This file will copy agents from /usr/triton/defaults/agents to
+# /opt/smartdc/agents/lib/node_modules which is the expected path for
+# agents in SmartOS and also the place where cn-agent will try to find
+# and update existing agents using agent images.
+
+
+export PATH=/bin:/usr/bin:/usr/sbin:/usr/node/bin:/usr/triton/bin
+
+set -o xtrace
+
+# SETUP="$(/usr/triton/bin/sysinfo | /usr/node/bin/json Setup)"
+
+# if [[ ${SETUP} == "false" ]]; then
+#     echo "Waiting for agents install until CN Setup is complete"
+#     exit 0
+# fi
+
+AGENT_ROOT="/opt/smartdc/agents"
+AGENT_NODE_DIR="/opt/smartdc/agents/lib/node_modules"
+
+mkdir -p "${AGENT_ROOT}"
+
+if [[ ! -d ${AGENT_ROOT}/etc/config-agent.d ]]; then
+    echo "Creating dir ${AGENT_ROOT}/etc/config-agent.d"
+    mkdir -p ${AGENT_ROOT}/etc/config-agent.d
+fi
+
+if [[ ! -d ${AGENT_NODE_DIR} ]]; then
+    echo "Creating dir ${AGENT_NODE_DIR}"
+    mkdir -p ${AGENT_NODE_DIR}
+fi
+
+if [[ ! -d ${AGENT_ROOT}/bin ]]; then
+    echo "Creating dir ${AGENT_ROOT}/bin"
+    mkdir -p ${AGENT_ROOT}/bin
+fi
+
+# First copy the agents we need:
+DEFAULT_AGENTS_DIR="/usr/triton/defaults/agents"
+for agent in $(ls -A "${DEFAULT_AGENTS_DIR}")
+do
+    if [[ $agent == "ur-agent" ]];
+        # We don't normally register ur-agent - leave it be.
+        continue
+    fi
+    agent_opt_dir="${AGENT_NODE_DIR}/${agent}"
+    if [[ ! -d ${agent_opt_dir} ]]; then
+        agent_usr_dir="${DEFAULT_AGENTS_DIR}/${agent}"
+
+        echo "Copying ${agent} from ${agent_usr_dir} to ${agent_opt_dir}"
+        cp -rp ${agent_usr_dir} ${agent_opt_dir}
+
+        /usr/triton/bin/register-agent "${agent}" "${agent_opt_dir}"
+    fi
+done
+
+exit 0
