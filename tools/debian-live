@@ -370,7 +370,7 @@ function install_usr_triton_cn_agent {
 	    set -xeuo pipefail
 	    export LC_ALL=C
 
-	    git -C /usr/triton/defaults/agents clone -b linuxcn-t2 https://github.com/joyent/sdc-cn-agent cn-agent
+	    git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/joyent/sdc-cn-agent cn-agent
 	    cd /usr/triton/defaults/agents/cn-agent
 	    rm -f package-lock.json
 	    npm install --production --ignore-scripts
@@ -410,7 +410,7 @@ function install_usr_triton_config_agent {
 	    set -xeuo pipefail
 	    export LC_ALL=C
 
-	    git -C /usr/triton/defaults/agents clone -b linuxcn-t2 https://github.com/joyent/sdc-config-agent config-agent
+	    git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/joyent/sdc-config-agent config-agent
 	    cd /usr/triton/defaults/agents/config-agent
 	    rm -f package-lock.json
 	    npm install --production --ignore-scripts
@@ -431,7 +431,7 @@ function install_usr_triton_net_agent {
 	    set -xeuo pipefail
 	    export LC_ALL=C
 
-	    git -C /usr/triton/defaults/agents clone -b linuxcn-t2 https://github.com/joyent/sdc-net-agent net-agent
+	    git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/joyent/sdc-net-agent net-agent
 	    cd /usr/triton/defaults/agents/net-agent
 	    rm -f package-lock.json
 	    npm install --production --ignore-scripts
@@ -448,7 +448,7 @@ function install_usr_triton_vm_agent {
         set -xeuo pipefail
         export LC_ALL=C
 
-        git -C /usr/triton/defaults/agents clone -b linuxcn-t2 https://github.com/joyent/sdc-vm-agent vm-agent
+        git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/joyent/sdc-vm-agent vm-agent
         cd /usr/triton/defaults/agents/vm-agent
         npm install --production
         # Install a fake image_uuid (remove when we have a proper build).
@@ -480,7 +480,7 @@ function install_usr_triton_vminfod {
         set -xeuo pipefail
         export LC_ALL=C
 
-        git -C /usr/triton/defaults/agents clone -b linuxcn-t2 https://github.com/joyent/triton-vminfod vminfod-agent
+        git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/joyent/triton-vminfod vminfod-agent
         cd /usr/triton/defaults/agents/vminfod-agent
         npm install --production
 		# Install a fake image_uuid (remove when we have a proper build).
