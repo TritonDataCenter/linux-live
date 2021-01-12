@@ -286,6 +286,7 @@ function remove_temporary_packages {
 # /usr/triton.
 function install_usr_triton {
 	chroot "$root" mkdir -p /usr/triton/bin
+	chroot "$root" mkdir -p /usr/triton/defaults/agents
 	chroot "$root" bash -c '
 	    PS4="INSTALL_USR_TRITON: "
 	    set -xeuo pipefail
@@ -356,35 +357,25 @@ function install_usr_triton_ur_agent {
 	    set -xeuo pipefail
 	    export LC_ALL=C
 
-	    git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/sdc-ur-agent
+	    git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/joyent/sdc-ur-agent ur-agent
 	    # Install a fake image_uuid (remove when we have a proper build).
-	    uuid -v4 > image_uuid
+	    uuid -v4 > /usr/triton/defaults/agents/ur-agent/image_uuid
 	'
 }
 
 # Install cn-agent and the dependencies (nice to have a build of this).
 function install_usr_triton_cn_agent {
-	# git -C $scratch clone -b linuxcn https://github.com/joyent/sdc-cn-agent
-	# cd $scratch/sdc-cn-agent && npm install
-	# cp -rp $scratch/sdc-cn-agent $root/usr/triton/
-
 	chroot "$root" bash -c '
 	    PS4="INSTALL_USR_TRITON_CN_AGENT: "
 	    set -xeuo pipefail
 	    export LC_ALL=C
 
-	    git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/sdc-cn-agent
-	    cd /usr/triton/sdc-cn-agent
+	    git -C /usr/triton/defaults/agents clone -b linuxcn-t2 https://github.com/joyent/sdc-cn-agent cn-agent
+	    cd /usr/triton/defaults/agents/cn-agent
 	    rm -f package-lock.json
 	    npm install --production --ignore-scripts
 	    # Install a fake image_uuid (remove when we have a proper build).
 	    uuid -v4 > image_uuid
-
-	    # Compat for vmadm tooling.
-	    # ln -s /usr/triton/sdc-cn-agent /opt/cn-agent
-	    # mkdir /opt/cn-agent/native
-	    mkdir -p /var/triton/vmadm/machines
-	    ln -s /usr/triton/sdc-cn-agent/node_modules/vmadm/bin/vmadm /usr/triton/bin/vmadm
 	'
 }
 
@@ -395,15 +386,15 @@ function install_usr_triton_imgadm {
         set -xeuo pipefail
         export LC_ALL=C
 
-        git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/node-imgadm
-        cd /usr/triton/node-imgadm
+        git -C /usr/triton/defaults clone -b linuxcn https://github.com/joyent/node-imgadm imgadm
+        cd /usr/triton/defaults/imgadm
         npm install --production
         # Install a fake image_uuid (remove when we have a proper build).
         uuid -v4 > image_uuid
 
-        # Backward compat for SmartOS tooling.
-        # ln -s /usr/triton/node-imgadm /opt/img
-        ln -s /usr/triton/node-imgadm/sbin/imgadm /usr/triton/bin/imgadm
+        # Make imgadm accessible.
+		# TODO: This should move to an persistent location (/opt/...)
+        ln -s /usr/triton/defaults/imgadm/sbin/imgadm /usr/triton/bin/imgadm
 	'
 }
 
@@ -419,8 +410,8 @@ function install_usr_triton_config_agent {
 	    set -xeuo pipefail
 	    export LC_ALL=C
 
-	    git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/sdc-config-agent
-	    cd /usr/triton/sdc-config-agent
+	    git -C /usr/triton/defaults/agents clone -b linuxcn-t2 https://github.com/joyent/sdc-config-agent config-agent
+	    cd /usr/triton/defaults/agents/config-agent
 	    rm -f package-lock.json
 	    npm install --production --ignore-scripts
 	    # Install a fake image_uuid (remove when we have a proper build).
@@ -440,12 +431,28 @@ function install_usr_triton_net_agent {
 	    set -xeuo pipefail
 	    export LC_ALL=C
 
-	    git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/sdc-net-agent
-	    cd /usr/triton/sdc-net-agent
+	    git -C /usr/triton/defaults/agents clone -b linuxcn-t2 https://github.com/joyent/sdc-net-agent net-agent
+	    cd /usr/triton/defaults/agents/net-agent
 	    rm -f package-lock.json
 	    npm install --production --ignore-scripts
 	    # Install a fake image_uuid (remove when we have a proper build).
 	    uuid -v4 > image_uuid
+	'
+}
+
+
+# Install vm-agent and the dependencies (nice to have a build of this).
+function install_usr_triton_vm_agent {
+	chroot "$root" bash -c '
+        PS4="INSTALL_USR_TRITON_VM_AGENT: "
+        set -xeuo pipefail
+        export LC_ALL=C
+
+        git -C /usr/triton/defaults/agents clone -b linuxcn-t2 https://github.com/joyent/sdc-vm-agent vm-agent
+        cd /usr/triton/defaults/agents/vm-agent
+        npm install --production
+        # Install a fake image_uuid (remove when we have a proper build).
+        uuid -v4 > image_uuid
 	'
 }
 
@@ -457,8 +464,8 @@ function install_usr_triton_metadata {
         set -xeuo pipefail
         export LC_ALL=C
 
-        git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/triton-metadata
-        cd /usr/triton/triton-metadata
+        git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/joyent/triton-metadata metadata-agent
+        cd /usr/triton/defaults/agents/metadata-agent
         npm install --production
 		# Install a fake image_uuid (remove when we have a proper build).
 		uuid -v4 > image_uuid
@@ -473,8 +480,8 @@ function install_usr_triton_vminfod {
         set -xeuo pipefail
         export LC_ALL=C
 
-        git -C /usr/triton/ clone -b linuxcn https://github.com/joyent/triton-vminfod
-        cd /usr/triton/triton-vminfod
+        git -C /usr/triton/defaults/agents clone -b linuxcn-t2 https://github.com/joyent/triton-vminfod vminfod-agent
+        cd /usr/triton/defaults/agents/vminfod-agent
         npm install --production
 		# Install a fake image_uuid (remove when we have a proper build).
 		uuid -v4 > image_uuid
@@ -868,6 +875,7 @@ all_steps=(
     install_usr_triton_cn_agent
     install_usr_triton_config_agent
     install_usr_triton_net_agent
+    install_usr_triton_vm_agent
     install_usr_triton_imgadm
     install_proto
     remove_temporary_packages

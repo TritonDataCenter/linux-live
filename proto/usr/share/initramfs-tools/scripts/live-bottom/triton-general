@@ -60,6 +60,9 @@ fi
 mkdir -p "${triton_config_dir}/imgadm"
 ln -s "/usr/triton/config/imgadm" "${rootmnt}/var/imgadm"
 
+# Add tool symlinks.
+ln -s "/opt/smartdc/agents/lib/node_modules/cn-agent/node_modules/vmadm/bin/vmadm" "${rootmnt}/usr/triton/bin/vmadm"
+
 log_end_msg
 
 exit 0

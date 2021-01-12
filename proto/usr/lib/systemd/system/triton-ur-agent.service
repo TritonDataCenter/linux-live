@@ -23,9 +23,9 @@ Documentation=https://github.com/joyent/sdc-ur-agent#linuxcn
 After=network.target
 
 [Service]
-Environment=PATH=/usr/node/bin:/usr/triton/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+EnvironmentFile=/usr/triton/config/systemd.env
 Type=simple
-ExecStart=/usr/node/bin/node /usr/triton/sdc-ur-agent/ur-agent
+ExecStart=/usr/node/bin/node /usr/triton/defaults/agents/ur-agent/ur-agent
 
 [Install]
 WantedBy=multi-user.target
