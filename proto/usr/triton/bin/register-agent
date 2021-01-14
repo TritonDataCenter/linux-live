@@ -195,7 +195,7 @@ function add_config_agent_instance
     data="{
         \"instance\": \"${instance_uuid}\",
         \"localManifestDirs\": [
-            \"${ROOT}\"
+            \"${AGENT_DIR}\"
         ]
     }"
     if ! printf '%s' "${data}" | json >"${agent_json}"; then
