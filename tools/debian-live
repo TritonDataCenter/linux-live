@@ -550,9 +550,11 @@ function install_lxd {
 
 	    make
 	    mv $(pwd)/_dist /usr/local/lxd
-	    export PATH="$PATH:$GOPATH/bin"
-	    export LD_LIBRARY_PATH="${GOPATH}/deps/sqlite/.libs/:${GOPATH}/deps/libco/:${GOPATH}/deps/raft/.libs/:${GOPATH}/deps/dqlite/.libs/:${LD_LIBRARY_PATH}"
-            rm -Rf /usr/local/go
+
+	    # Add dynamic libraries to the lxd binary rpath.
+	    patchelf --set-rpath "\$ORIGIN/../deps/raft/.libs:\$ORIGIN/../deps/dqlite/.libs" /usr/local/lxd/bin/lxd
+
+	    rm -Rf /usr/local/go
 	'
 }
 
