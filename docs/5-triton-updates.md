@@ -113,7 +113,7 @@ At this point the linux CN should be running and you can use `sdc-oneachnode` an
 sdc-imgapi /images'?action=import-lxd-image&alias=images:alpine/3.12' -X POST
 ```
 
-## 10. Provision an lxd instance:
+## 10. Provision an lxd instance
 
 ```
 cat lxd.json
@@ -144,3 +144,42 @@ sdc-waitforjob "7444e332-fce2-4085-8bda-65047d97f171"
 sdc-vmapi /jobs/7444e332-fce2-4085-8bda-65047d97f171
 ```
 
+
+## 11. Provision through Triton CLI
+
+To be able to provision through the Triton CLI (or CloudAPI) you'll need to
+update CNAPI and make the lxd images public.
+
+Update CNAPI:
+
+```
+sdcadm up -C experimental cnapi@~linuxcn -y
+```
+
+Make lxd images public (so Triton CLI can find them):
+```
+sdc-imgapi /images?type=lxd | json -Hga uuid | xargs -n1 -I '{}' sdc-imgapi '/images/{}?action=update' -X POST -d '{"public": true}'
+```
+
+Find image and provision a lx container on Linux:
+```
+triton images | grep lxd
+71b94f10  alpine_3.12_amd64_default       20201204_13_00  P      linux    lxd           2020-12-04
+```
+
+Explicitly find a network to use (the default network is usually a fabric
+network, which will not be available on Linux):
+```
+triton networks
+SHORTID   NAME                          SUBNET            GATEWAY        FABRIC  VLAN  PUBLIC
+0abea36b  My-Fabric-Network             192.168.128.0/22  192.168.128.1  true    2     false
+b2336046  sdc_nat                       -                 -              -       -     true
+```
+
+Provision a container using the lxd image and the chosen network:
+
+```
+triton create -w 71b94f10 sample-256M -N sdc_nat
+Creating instance 95157ccb (95157ccb-9f04-4ede-894c-f9e995e3fae3, alpine_3.12_amd64_default@20201204_13_00)
+Created instance 95157ccb (95157ccb-9f04-4ede-894c-f9e995e3fae3) in 5s
+```
