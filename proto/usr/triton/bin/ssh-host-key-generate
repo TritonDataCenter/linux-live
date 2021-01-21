@@ -23,25 +23,7 @@ for path in "${keyfiles[@]}"; do
 		continue
 	fi
 
-	dir=$(dirname "$path")
 	file=$(basename "$path")
-
-	if [[ ${checked["$path"]:-no} == no ]]; then
-		if [[ ! -d $dir ]]; then
-			echo "$0: $dir does not exist - ignoring" 1>&2
-			continue
-		fi
-
-		# Since we expect keys to be in a mounted ZFS file system we refuse to
-		# create keys in a directory that doesn't match our expectations.
-		# Without this check, an errant key generation could pollute the
-		# mountpoint, thereby breaking `zfs mount`.
-		if [[ ! $(zfs list -Ho mountpoint "$dir") ]]; then
-			echo "$0: $dir is not mounted as expected" 1>&2
-			exit 1
-		fi
-		checked["$path"]=yes
-	fi
 
 	if ! [[ $file =~ ssh_host_.*_key ]]; then
 		echo "$0: unable to determine key type from $path" 1>&2
