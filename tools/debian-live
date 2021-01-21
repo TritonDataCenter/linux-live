@@ -39,7 +39,7 @@ name="Debian 10"
 docurl=https://github.com/joyent/linux-live
 
 ntp=0.debian.pool.ntp.org
-zfs_ver=0.8.3
+zfs_ver=2.0.1
 
 # From https://willhaley.com/blog/custom-debian-live-environment/
 packages=(linux-image-amd64 live-boot systemd-sysv)
@@ -76,11 +76,11 @@ temp_build_packages=(gawk alien libblkid-dev uuid-dev libudev-dev libssl-dev
 )
 
 # packages required to build lxd
-temp_build_packages+=(libacl1-dev libcap-dev lxc-dev libuv1-dev)
+temp_build_packages+=(libacl1-dev libcap-dev lxc-dev libuv1-dev patchelf)
 
 # These are for the lxd test suite:
 temp_build_packages+=(libapparmor-dev libseccomp-dev libcap-dev gettext
-    uuid-runtime bzr socat sqlite3
+    uuid-runtime bzr socat libsqlite3-dev
 )
 
 # Args added to 'apt install'
@@ -524,9 +524,9 @@ function install_proto {
 }
 
 function install_lxd {
-	curl -L https://golang.org/dl/go1.15.2.linux-amd64.tar.gz |
+	curl -L https://golang.org/dl/go1.15.6.linux-amd64.tar.gz |
 	    chroot "$root" tar -C /usr/local --no-same-owner -xzf -
-	LXD_RELEASE=lxd-4.0.2
+	LXD_RELEASE=lxd-4.0.4
 	curl -L https://github.com/lxc/lxd/releases/download/$LXD_RELEASE/$LXD_RELEASE.tar.gz |
 	    chroot "$root" tar -C /tmp --no-same-owner -xzf -
 	chroot "$root" bash -c '
@@ -535,7 +535,7 @@ function install_lxd {
 
 	    export DEBIAN_FRONTEND=noninteractive
 	    export LC_ALL=C
-	    export LXD_RELEASE=/tmp/lxd-4.0.2
+	    export LXD_RELEASE=/tmp/lxd-4.0.4
 	    export PATH=$PATH:/usr/local/go/bin
 	    cd $LXD_RELEASE
 	    export GOPATH=$(pwd)/_dist
