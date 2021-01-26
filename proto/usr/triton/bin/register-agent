@@ -16,7 +16,7 @@
 . /usr/triton/bin/config.sh
 load_sdc_config
 
-ROOT="$(cd `dirname $0`/../ 2>/dev/null && pwd)"
+ROOT="$(cd "$(dirname "$0")"/../ 2>/dev/null && pwd)"
 
 . "${ROOT}/lib/error_handler.sh"
 . "${ROOT}/lib/trace_logger.sh"
@@ -61,7 +61,7 @@ SAPI_URL="http://${CONFIG_sapi_domain}"
 ETC_DIR="/opt/smartdc/agents/etc"
 
 CMD_UUID_V4="/usr/bin/uuid -v4"
-
+fi
 # ---- support functions
 
 #
@@ -75,12 +75,12 @@ function import_systemd_services
         return 0
     fi
 
-    for SERVICE_NAME in $(ls -A "${AGENT_DIR}/systemd")
+    for SERVICE_NAME in "${AGENT_DIR}"/systemd/*
     do
         if [[ ${SERVICE_NAME} == *.service ]]; then
-            cp ${AGENT_DIR}/systemd/${SERVICE_NAME} /usr/lib/systemd/system/${SERVICE_NAME}
-            systemctl enable ${SERVICE_NAME}
-            systemctl start ${SERVICE_NAME}
+            cp "${AGENT_DIR}/systemd/${SERVICE_NAME}" "/usr/lib/systemd/system/${SERVICE_NAME}"
+            systemctl enable "${SERVICE_NAME}"
+            systemctl start "${SERVICE_NAME}"
         fi
     done
 }
