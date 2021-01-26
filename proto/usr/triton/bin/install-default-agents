@@ -49,9 +49,9 @@ fi
 
 # First copy the agents we need:
 DEFAULT_AGENTS_DIR="/usr/triton/defaults/agents"
-for agent in $(ls -A "${DEFAULT_AGENTS_DIR}")
+for agent in "${DEFAULT_AGENTS_DIR}"/*
 do
-    if [[ $agent == "ur-agent" ]];
+    if [[ $agent == "ur-agent" ]]; then
         # We don't normally register ur-agent - leave it be.
         continue
     fi
@@ -60,7 +60,7 @@ do
         agent_usr_dir="${DEFAULT_AGENTS_DIR}/${agent}"
 
         echo "Copying ${agent} from ${agent_usr_dir} to ${agent_opt_dir}"
-        cp -rp ${agent_usr_dir} ${agent_opt_dir}
+        cp -rp "${agent_usr_dir}" "${agent_opt_dir}"
 
         /usr/triton/bin/register-agent "${agent}" "${agent_opt_dir}"
     fi
