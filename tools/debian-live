@@ -674,6 +674,8 @@ EOF
 
 	(cd "$scratch" &&
 	    tar cf - platform-$release | pigz > $top/platform-$release.tgz)
+	ln -f -s "${top}/platform-$release.tgz" "$top/../platform-latest.tgz"
+
 }
 
 function create_iso {
@@ -706,6 +708,8 @@ function create_iso {
 	    -output "$top/joyent-debian_live-$release.iso" \
 	    -graft-points "$image" /boot/grub/bios.img=$scratch/bios.img \
 	    /EFI/efiboot.img=$scratch/efiboot.img
+
+	    ln -f -s "${top}/joyent-debian_live-$release.iso" "$top/../joyent-debian_live-latest.iso"
 }
 
 # Creates a USB disk that should be bootable with BIOS or UEFI. The partition
@@ -801,6 +805,8 @@ function create_usb {
 
 	rm -f "$top/joyent-debian_live-$release.usb.gz"
 	pigz -c "$disk_file" > "$top/joyent-debian_live-$release.usb.gz"
+	ln -f -s "${top}/joyent-debian_live-$release.usb.gz" "$top/../joyent-debian_live-latest.usb.gz"
+
 }
 
 function run {
@@ -925,7 +931,7 @@ fi
 
 # Do the preflight_check early to avoid erroring out when trying to use commands
 # like `git` that may not already be installed.
-preflight_check 
+preflight_check
 
 if [[ -z $dataset ]]; then
 	datasets=($(zfs list -Ho name -d 1))
@@ -986,6 +992,8 @@ for step in "${steps[@]}"; do
 	run $step $firststep
 	firststep="no"
 done
+
+ln -f -s "$release" "$top/../latest"
 
 clean_exit=true
 set +x
