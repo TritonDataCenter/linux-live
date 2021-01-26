@@ -621,13 +621,17 @@ insmod all_video
 set default="0"
 set timeout=30
 
+serial --speed=115200 --unit=1 --word=8 --parity=no --stop=1
+terminal_input --append serial
+terminal_output --append serial
+
 menuentry "Joyent Debian Live $release without DHCP ttyS0" {
-    linux /vmlinuz boot=live console=ttyS0
+    linux /vmlinuz boot=live console=tty0 console=ttyS1
     initrd /initrd
 }
 
 menuentry "Joyent Debian Live $release with default networking" {
-    linux /vmlinuz boot=live triton.dhcp-all-nics
+    linux /vmlinuz boot=live console=tty0 console=ttyS1 triton.dhcp-all-nics
     initrd /initrd
 }
 
@@ -683,8 +687,8 @@ function create_iso {
 	    --locales="" --fonts="" "boot/grub/grub.cfg=$scratch/grub.cfg"
 
 	grub-mkstandalone --format=i386-pc --output=$scratch/core.img \
-	    --install-modules="linux normal iso9660 biosdisk memdisk search tar ls" \
-	    --modules="linux normal iso9660 biosdisk search" --locales="" \
+	    --install-modules="linux normal iso9660 biosdisk serial memdisk search tar ls" \
+	    --modules="linux normal iso9660 biosdisk serial search" --locales="" \
 	    --fonts="" "boot/grub/grub.cfg=$scratch/grub.cfg"
 
 	# mcopy, mmd from mtools - Not Manta!
