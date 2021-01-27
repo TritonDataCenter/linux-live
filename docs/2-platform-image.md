@@ -84,41 +84,6 @@ stored as drop-in files in `/etc/systemd/network`, which is mounted from
 
 XXX This is aspirational as of 2020-02-10.
 
-Linux ZFS binaries are not redistributable due to incompatibility between the
-GPL and CDDL.  Distribution of ZFS will be only via source code.  Each
-organization that uses ZFS will need to create their own ZFS binaries for each
-image.  This process will be automated.
-
-Each distributed platform image will have four key files:
-
-1. The kernel, `vmlinuz`.
-2. The initial ramdisk, `initrd.img`
-3. The platform root file system, `filesystem.squashfs`
-4. The platform build file system, `build.tgz`
-
-All of these files will be included in `platform.tgz`, with a hierarchy and
-auxiliary files that match those found in a SmartOS platform archive.
-
-### zfsbuilder service.
-
-The zfsbuilder service will run in an HVM instance.  An HVM instance is needed
-so that nested containers may be used in the build process.  In the future, we
-may allow builds to occur on lxc instances on Linux CNs, as nested containers
-are possible.
-
-A new trition service, zfsbuilder, will become aware of a new platform image
-import (XXX mechanism TBD) and will use the content of `build.tgz` to build
-ZFS binaries.  `build.tgz` is a container root file system that has
-all of the source code and dependencies required to build ZFS binaries that are
-appropriate for the associated platform image.
-
-The build will produce a file, `zfs-$platform.tar` containing the ZFS
-packages that need to be installed in the platform image.  This tar file should
-not include test packages or others that are not needed for typical operation.
-The test package(s) should be available to aid in development.
-
-The files will be made available via HTTP from the zfsbuilder VM.
-
 ## Booter Integration
 
 XXX This is aspirational as of 2020-02-10.
@@ -332,10 +297,8 @@ generated `.iso` and `.usb.gz` files are.
 
 ### Build machine installation
 
-The debian-live image can be created on an existing debian-live system.  This
-image is not redistributable due to the inclusion of ZFS.  For this reason, the
-steps to creating your a PI build environment varies.
-
+The debian-live image can be created on an existing debian-live system.  The
+`tools/debian-live` script can install the necessary dependencies.
 
 #### Build machine installation in Joyent
 
