@@ -38,7 +38,7 @@ debver=buster
 name="Debian 10"
 docurl=https://github.com/joyent/linux-live
 
-ntp=0.debian.pool.ntp.org
+# ntp=0.debian.pool.ntp.org
 zfs_ver=2.0.1
 
 # From https://willhaley.com/blog/custom-debian-live-environment/
@@ -51,9 +51,29 @@ packages+=(systemd-container)
 # For set-hostid, sysinfo, etc.
 packages+=(dmidecode python3)
 
-# I noticed these important things are missing
-packages+=(openssh-server vim curl less ca-certificates iproute2 man
-   bc dnsutils iputils-ping jq ntpdate sysstat sudo strace lsof psmisc)
+# Additional packages for a useful system.
+packages+=(
+    bc
+    ca-certificates
+    curl
+    dnsutils
+    iproute2
+    iputils-ping
+    jq
+    less
+    lsof
+    man
+    netcat-openbsd
+    ntpdate
+    openssh-server
+    psmisc
+    screen
+    socat
+    strace
+    sudo
+    sysstat
+    vim
+)
 
 # Agents build relies on uuid.
 packages+=(uuid)
@@ -111,13 +131,14 @@ trap cleanup EXIT
 clean_exit=false
 function onfatal {
 	if [[ $clean_exit == false ]]; then
-		echo "Cleaning up: $@" 1>&2
+		echo "Cleaning up: $*" 1>&2
 		eval "$@"
 	fi
 }
 
 function unmount_children {
-	local dirs=($(mount | awk -v root=$root/ '
+	local dirs
+	mapfile -t dirs < <(mount | awk -v root=$root/ '
 	BEGIN {
 		if ( root == "/" || root == "" ) {
 			printf "cleanup: root is \"%s\"\n", root >/dev/fd/2
@@ -126,7 +147,7 @@ function unmount_children {
 	}
 	$3 ~ root {
 		print $3
-	}' | sort -r))
+	}' | sort -r)
 	for dir in "${dirs[@]}"; do
 		umount "$dir"
 	done
@@ -153,11 +174,11 @@ function preflight_check {
 	)
 
 	local missing=() status
-	for pkg in ${packages[@]}; do
+	for pkg in "${packages[@]}"; do
 		status=$(dpkg-query -W -f '${db:Status-Status}' $pkg \
 		    2>/dev/null || true)
 		if [[ $status != installed ]]; then
-			missing+=($pkg)
+			missing+=( "$pkg" )
 		fi
 	done
 	if (( ${#missing[@]} == 0 )); then
@@ -228,6 +249,7 @@ function install_temporary_packages {
 # squashfs or initrd files.  They can be built, but the artifacts should be
 # stored in a way that they can be excluded from distributed images.
 function build_zfs {
+	# shellcheck disable=2016
 	chroot "$root" env zfs_ver=$zfs_ver bash -c '
 	    PS4="BUILD_ZFS: "
 	    set -xeuo pipefail
@@ -244,7 +266,8 @@ function build_zfs {
 	'
 
 	clean+=(unmount_children)
-	mount -t proc proc $root/proc
+	mount -t proc proc "$root/proc"
+	# shellcheck disable=2016
 	chroot "$root" bash -c '
 	    PS4="BUILD_ZFS: "
 	    set -xeuo pipefail
@@ -258,9 +281,9 @@ function build_zfs {
 	    cd ..
 	    rm -rf zfs
 	'
-	umount $root/proc
+	umount "$root/proc"
 
-	mv $root/all-packages.tar $root/packages.tar $scratch
+	mv "$root/all-packages.tar" "$root/packages.tar" "$scratch"
 
 }
 
@@ -268,6 +291,7 @@ function build_zfs {
 # additional packages (over 100 MiB of development tools), so now cleanup
 # (remove) the packages which are no longer needed.
 function remove_temporary_packages {
+	# shellcheck disable=2016
 	chroot "$root" env zfs_ver="$zfs_ver" pkgs="${temp_build_packages[*]}" \
 	    bash -c '
 		PS4="CLEAN_ZFS_DEV: "
@@ -504,6 +528,7 @@ function install_proto {
 	    (chroot "$root" /usr/bin/tar --no-same-owner -xvf -)
 
 	# Enable all services that were installed.
+	# shellcheck disable=2016
 	chroot "$root" bash -c '
 	    PS4="INSTALL_PROTO: "
 	    set -xeuo pipefail
@@ -529,6 +554,7 @@ function install_lxd {
 	LXD_RELEASE=lxd-4.0.4
 	curl -L https://github.com/lxc/lxd/releases/download/$LXD_RELEASE/$LXD_RELEASE.tar.gz |
 	    chroot "$root" tar -C /tmp --no-same-owner -xzf -
+	# shellcheck disable=2016
 	chroot "$root" bash -c '
 	    PS4="BUILD_LXD: "
 	    set -xeuo pipefail
@@ -560,6 +586,7 @@ function install_lxd {
 
 function postinstall {
 	# Heavily inspired by mi-debian-hvm/debian-10/late-command
+	# shellcheck disable=2016
 	chroot "$root" env release="$release" motd="$motd" product="$product" \
 	    relase="$release" \
 	    bash -c '
@@ -613,7 +640,7 @@ function prepare_archive_bits {
 	cp $root/vmlinuz $image/vmlinuz
 	cp $root/initrd.img $image/initrd
 
-	cat <<EOF >$scratch/grub.cfg
+	cat <<EOF >"$scratch/grub.cfg"
 search --set=root --file /JOYENT_DEBIAN_LIVE
 
 insmod all_video
@@ -640,16 +667,16 @@ menuentry "Joyent Debian Live $release without DHCP" {
     initrd /initrd
 }
 EOF
-	echo $release > $image/JOYENT_DEBIAN_LIVE
+	echo "$release" > "$image/JOYENT_DEBIAN_LIVE"
 }
 
 function create_tgz {
 	local dir=$scratch/platform-$release
 
 	mkdir -p "$dir/etc/version"
-	echo "$release" > $dir/etc/version/platform
-	cp $root/etc/os-release $dir/etc/version/os-release
-	cat > $dir/etc/version/gitstatus <<EOF
+	echo "$release" > "$dir/etc/version/platform"
+	cp "$root/etc/os-release" "$dir/etc/version/os-release"
+	cat > "$dir/etc/version/gitstatus" <<EOF
 [
     {
         "repo": "linux-live",
@@ -665,16 +692,18 @@ EOF
 	# has not be committed to the upstream master branch.
 	mkdir -p "$dir/etc/patches"
 	git format-patch -o "$dir/etc/patches" origin/master
-	local out=$(git diff HEAD)
+	local out
+	out=$(git diff HEAD)
 	[[ -n "$out" ]] && echo "$out" > "$dir/etc/patches/9999-uncommitted"
 	out=$(git status 2>&1)
 	[[ -n "$out" ]] && echo "$out" > "$dir/etc/patches/git-status"
 
-	local dir_m="$dir/$(uname -m)"
+	local dir_m
+	dir_m="$dir/$(uname -m)"
 	mkdir -p "$dir_m"
-	cp $root/vmlinuz $dir_m/vmlinuz
-	cp $root/initrd.img $dir_m/initrd
-	cp $image/live/filesystem.squashfs $dir_m/filesystem.squashfs
+	cp "$root/vmlinuz" "$dir_m/vmlinuz"
+	cp "$root/initrd.img" "$dir_m/initrd"
+	cp "$image/live/filesystem.squashfs" "$dir_m/filesystem.squashfs"
 
 	(cd "$scratch" &&
 	    tar cf - platform-$release | pigz > $top/platform-$release.tgz)
@@ -730,7 +759,8 @@ function create_usb {
 	local esp_end=$(( esp_start + esp_sec - 1 ))
 	local esp_mnt=$scratch/mnt/esp
 	local image_start=$(( esp_end + 1 ))
-	local image_sec=$(du -sk $image | awk '{printf "%0.f\n", $1 * 2 * 1.2}')
+	local image_sec
+	      image_sec=$(du -sk $image | awk '{printf "%0.f\n", $1 * 2 * 1.2}')
 	local image_mnt=$scratch/mnt/image
 	local total_sec=$(( image_start + image_sec ))
 	local disk_mb=$(( total_sec / 2 / 1024 + 1 ))
@@ -763,7 +793,8 @@ function create_usb {
 	Y     # confirm changes
 	EOF
 
-	local parts=$(kpartx -s -v -a "$disk_file")
+	local parts
+	parts=$(kpartx -s -v -a "$disk_file")
 	cleanup+=("kpartx -d $disk_file")
 
 	esp_dev=$(echo "$parts" | awk -v start=$esp_start \
@@ -818,7 +849,8 @@ function run {
 	local isFirstStep=$2
 	local presnap=$dataset@pre-$step
 	local postsnap=$dataset@post-$step
-	local preSnapExits=$(zfs list -Ho name "$presnap" >/dev/null 2>&1 && echo "yes" || echo "no")
+	local preSnapExits
+	preSnapExits=$(zfs list -Ho name "$presnap" >/dev/null 2>&1 && echo "yes" || echo "no")
 
 	if [[ $isFirstStep == "yes" && $preSnapExits == "yes" ]]; then
 		zfs rollback -r "$presnap"
@@ -833,7 +865,8 @@ function run {
 	$step
 
 	# (re)create post snapshot
-	local postSnapExits=$(zfs list -Ho name "$postsnap" >/dev/null 2>&1 && echo "yes" || echo "no")
+	local postSnapExits
+	postSnapExits=$(zfs list -Ho name "$postsnap" >/dev/null 2>&1 && echo "yes" || echo "no")
 	if [[ $postSnapExits == "yes" ]]; then
 		zfs destroy -f "$postsnap"
 	fi
@@ -895,7 +928,8 @@ all_steps=(
     prepare_archive_bits
     create_tgz
     create_iso
-    create_usb)
+    create_usb
+)
 dataset=
 install_missing=false
 
@@ -909,25 +943,25 @@ while getopts d:hmr:x opt; do
 	*)	fail_usage ;;
 	esac
 done
-shift $(( $OPTIND - 1 ))
+shift $(( OPTIND - 1 ))
 if (( $# == 0 )); then
 	steps=("${all_steps[@]}")
 else
 	steps=()
 	prev=
-	for step in $@; do
-		if [[ $step != ... ]]; then
-			steps+=($step)
-			prev=$step
+	for r_step in "$@"; do
+		if [[ $r_step != ... ]]; then
+			steps+=("$r_step")
+			prev="$r_step"
 			continue
 		fi
-		for step in "${all_steps[@]}"; do
-			if [[ $step == $prev ]]; then
+		for f_step in "${all_steps[@]}"; do
+			if [[ $f_step == "$prev" ]]; then
 				prev=_found_it
 				continue
 			fi
 			if [[ $prev == _found_it ]]; then
-				steps+=($step)
+				steps+=("$f_step")
 			fi
 		done
 	done
@@ -938,17 +972,19 @@ fi
 preflight_check
 
 if [[ -z $dataset ]]; then
-	datasets=($(zfs list -Ho name -d 1))
 	pools=()
 	for ds in $(zfs list -Ho name -d 1); do
 		case $(basename "$ds") in
-		$ds)
-			pools+=($ds)
+		"$ds")
+			pools+=("$ds")
 			;;
 		debian-live)
 			dataset=$ds
 			break
 			;;
+		*)
+			printf 'Unable to determine dataset!\n'
+			printf 'Error occurred at line %s\n' "$LINENO"
 		esac
 	done
 	if [[ -z $dataset && ${#pools[@]} == 1 ]]; then
@@ -981,7 +1017,7 @@ motd=$'
                    `-\'   '"$docurl"'
 '
 
-commit=$(cd $(dirname "$0") && git rev-parse HEAD)
+commit=$(cd "$(dirname "$0")" && git rev-parse HEAD)
 product="
 Name: Joyent Platform Image
 Image: $name $release
@@ -993,7 +1029,7 @@ Commit: https://github.com/joyent/linux-live/commit/$commit
 firststep="yes"
 
 for step in "${steps[@]}"; do
-	run $step $firststep
+	run "$step" "$firststep"
 	firststep="no"
 done
 
