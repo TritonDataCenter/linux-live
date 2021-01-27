@@ -1021,9 +1021,9 @@ commit=$(cd "$(dirname "$0")" && git rev-parse HEAD)
 product="
 Name: Joyent Platform Image
 Image: $name $release
-Documentation: https://github.com/joyent/linux-live/
-Description: $name with ZFS $zfs_ver.  THIS IMAGE IS NOT REDISTRIBUTABLE with the ZFS kernel modules.
-Commit: https://github.com/joyent/linux-live/commit/$commit
+Documentation: $docurl
+Description: $name with ZFS $zfs_ver
+Commit: $docurl/commit/$commit
 "
 
 firststep="yes"
