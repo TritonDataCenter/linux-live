@@ -48,25 +48,24 @@ being said, it is comforting to know that it is possible.  See
 [systemd-system.conf](https://www.freedesktop.org/software/systemd/man/systemd-system.conf.html)
 and [systemd](https://www.freedesktop.org/software/systemd/man/systemd.html).
 
-
 ## How linux-live will configure systemd
 
 As described in
 [systemd.unit](https://www.freedesktop.org/software/systemd/man/systemd.unit.html),
 a service's configuration is synthesized from:
 
-- Template service files: `<service>@.service` files in the service directories
-- Service files: `<service>[@<instance>].service` files in the service directories
-- Drop in files: `<service>[@[<instance>]].service.d/*.conf` files in the
+* Template service files: `<service>@.service` files in the service directories
+* Service files: `<service>[@<instance>].service` files in the service directories
+* Drop in files: `<service>[@[<instance>]].service.d/*.conf` files in the
   service directories.
 
 Where the service directories are:
 
-- `/lib/systemd/system`: Part of the platform image. Typically, these files are
+* `/lib/systemd/system`: Part of the platform image. Typically, these files are
   delivered by the distribution's packages.
-- `/run/systemd/system`: Dynamically generated at run-time and not persisted
+* `/run/systemd/system`: Dynamically generated at run-time and not persisted
   across reboots.
-- `/etc/systemd/system`: Under the administrator's control.  This will be
+* `/etc/systemd/system`: Under the administrator's control.  This will be
   mounted from the system ZFS pool very early in boot, allowing persistence.
 
 ### Best practices
@@ -99,7 +98,7 @@ some workarounds, a drop-in configuration is added as
 `/usr/lib/systemd/system/systemd-nspawn@.service.d/10-reboot-workaround.conf`.
 It contains:
 
-```
+```systemd
 #
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
@@ -133,7 +132,6 @@ All systemd unit and drop-in files that are part of the platform image are
 delivered under `/usr/lib/systemd`.  This ensures that most directories under
 `/etc/systemd` are empty, allowing ZFS file systems to be mounted on them.
 
-
 ### Networking
 
 The examples below describe static configuration in `/etc/systemd/network`.
@@ -149,7 +147,7 @@ configuration in `/run/systemd` using a
 During development, it is handy to have NICs configured by DHCP.  Except when
 it's not.  `/usr/lib/systemd/network/99-dhcp-all-nics.network` contains:
 
-```
+```systemd
 [Match]
 KernelCommandLine=triton.dhcp-all-nics
 
@@ -177,14 +175,14 @@ a complete picture of why the above items were configured the way there were.
 To prevent `99-dhcp-all-nics.network` from having effect, we can now mask it
 with a symbolic link in `/etc/systemd/network`:
 
-```
-# ln -s /dev/null /etc/systemd/network/99-dhcp-all-nics.network
+```bash
+ln -s /dev/null /etc/systemd/network/99-dhcp-all-nics.network
 ```
 
 To add static configuration of a single NIC, we add
 `/etc/systemd/network/10-external0.network`:
 
-```
+```systemd
 [Match]
 MACAddress=52:54:00:d6:56:a1
 
@@ -204,7 +202,7 @@ As a reminder `/etc/systemd/network` is mounted from the system ZFS pool.
 A `.link` file like the following can be used to rename a link to a name that
 makes it suitable for including in other unit files and drop-in files.
 
-```
+```bash
 # cat /etc/systemd/network/10-external0.link
 [Match]
 MACAddress=52:54:00:ab:bf:60
@@ -222,7 +220,7 @@ consistently hitting and am now consistently not hitting.
 If a reboot is not acceptable, the link rename can be forced without a reboot
 with:
 
-```
+```bash
 udevadm trigger -s net -c add
 udevadm settle
 ```
@@ -237,7 +235,7 @@ address in the host, the link will remain down.  This causes problems for
 MACVLAN instances in containers, as they cannot use their MACVLAN instances
 while the lower link is down.
 
-```
+```bash
 # cat /etc/systemd/network/external0.network
 [Match]
 Name=external0
@@ -250,7 +248,7 @@ Address=127.0.0.2
 If we want to attach metadata to a link (or any other unit file), that can be
 done with `X-` prefixes.
 
-```
+```systemd
 [X-Triton]
 X-NICTag=external
 X-Customer=00000000-0000-0000-0000-000000000000
@@ -261,5 +259,6 @@ X-Customer=00000000-0000-0000-0000-000000000000
 The `systemd-nspawn@.service` service will be used for starting and managing
 machines.
 
-More details are in [RFD
-180](https://github.com/joyent/rfd/blob/master/rfd/0180/README.md).
+More details are in [RFD 180][rfd180].
+
+[rfd180]: https://github.com/joyent/rfd/blob/master/rfd/0180/README.md
