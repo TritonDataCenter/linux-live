@@ -20,24 +20,30 @@ The platform image is based on Debian utilizing ZFS on Linux.
 ### TLDR
 
 1. Install [Debian 10 64-bit](https://www.debian.org/CD/http-ftp/) on a machine
-   (e.g. in VMware)
+    (e.g. in VMware)
 2. Install [ZFS](#install-zfs)
 3. Create a zpool (warning - this will destroy the disk partition), e.g.
-```
-zpool create data /dev/sdb
-sudo touch /data/.system_pool
-```
+
+    ```bash
+    zpool create data /dev/sdb
+    sudo touch /data/.system_pool
+    ```
+
 4. Install Git
-```
-apt install -y git
-```
+
+    ```bash
+    apt install -y git
+    ```
+
 5. Build the [Image](#image-creation) - clone this repo and run the debian-live
    image builder:
-```
+
+    ```bash
     git clone -b linuxcn https://github.com/joyent/linux-live
     cd linux-live
     ./tools/debian-live
-```
+    ```
+
 6. Copy the resulting image (ISO or USB) out of the Debian machine and use that
    for the compute node boot (e.g. in a different VMware virtual machine, or on
    real hardware).
@@ -52,7 +58,7 @@ There are a small number of Triton-specific files that need to be delivered into
 the image.  In general they fall into the following categories:
 
 * Things needed to bootstrap Triton.  For instance, `ur-agent` and its
-  dependencies (e.g. `/usr/node`) need to be present.
+    dependencies (e.g. `/usr/node`) need to be present.
 * Things needed for sane operation.  Currently this includes:
   * Setting the locale to quiet various warnings.
   * Fixing a very poor default setting for `mouse` in `vim` so that copy and
@@ -92,7 +98,7 @@ XXX This is aspirational as of 2020-02-10.
 
 The layout of a Linux platform.tgz file will be:
 
-```
+```ls
 platform/
 platform/etc/
 platform/etc/version/
@@ -130,24 +136,22 @@ under `/tftboot`:
 
 `boot.ipxe01<MAC>` will resemble:
 
-```
+```ipxe
 #!ipxe
-kernel /os/20200401T0123456Z/platform/x86_64/vmlinuz console=ttyS0 boot=live \
-  fetch=http:///os/20200401T0123456Z/platform/x86_64/filesystem.squashfs
+kernel /os/20200401T0123456Z/platform/x86_64/vmlinuz console=ttyS0 boot=live fetch=http:///os/20200401T0123456Z/platform/x86_64/filesystem.squashfs
 initrd /os/20200401T0123456Z/platform/x86_64/initrd
 module --name /packages.tar /zfs/20200401T0123456Z/packages.tar
 module --name /networking.json /bootfs/<MAC>/networking.json
 boot
 ```
 
-In this example, it is anticipated that http://<booter-ip>/zfs is proxied
+In this example, it is anticipated that `http://<booter-ip>/zfs` is proxied
 to the appropriate URL on the zfsbuild instance.  This configuration requires
 that booter is configured to serve files via HTTP, not TFTP.
 
 **XXX for initial prototyping, ZFS bits will be in `filesystem.squashfs` and
 perhaps `initrd`.  `packages.tar` will not be available and if `networking.json`
 is present it can be ignored.**
-
 
 ### ISC DHCP server configuration
 
@@ -158,13 +162,13 @@ server it is running on has an interface with address 192.168.42.1 and is
 running a web server, such as is described in the nginx configuration that
 follows this section.
 
-```
+```bash
 apt install -y isc-dhcp-server
 ```
 
 In `/etc/dhcp/dhcpd.conf`:
 
-```
+```conf
 default-lease-time 600;
 max-lease-time 7200;
 ddns-update-style none;
@@ -214,15 +218,15 @@ option ipxe.sdi code 40 = unsigned integer 8;
 option ipxe.nfs code 41 = unsigned integer 8;
 
 subnet 192.168.42.0 netmask 255.255.255.0 {
-	option ipxe.no-pxedhcp 1;
-	range 192.168.42.100 192.168.42.200;
-	filename "http://192.168.42.1/boot.ipxe";
+    option ipxe.no-pxedhcp 1;
+    range 192.168.42.100 192.168.42.200;
+    filename "http://192.168.42.1/boot.ipxe";
 }
 ```
 
 After the configuration is in place:
 
-```
+```bash
 systemctl enable --now isc-dhcp-server
 ```
 
@@ -234,7 +238,7 @@ you wish to PXE boot.
 
 Install nginx
 
-```
+```bash
 apt install -y nginx
 ```
 
@@ -242,12 +246,12 @@ Remove `/etc/nginx/sites-enabled/default`.
 
 Add `/etc/nginx/sites-enabled/booter` with the following content:
 
-```
+```bash
 server {
-	listen	80;
-	location / {
-		root /tftpboot;
-	}
+    listen 80;
+    location / {
+        root /tftpboot;
+    }
 }
 ```
 
@@ -259,19 +263,19 @@ The boot of a Linux CN via iPXE uses the following general procedure:
    kernel.
 2. ipxe downloads `/os/<platform-timestamp>/platform/x86_64/initrd.img` as the
    initial ramdisk.
-2. ipxe downloads `/zfs/<platform-timestamp>/packages` as `/packages.tar`.
-3. ipxe downloads `/bootfs/<MAC>/network.json` as `/networking.json`
-4. The kernel starts, loads `initrd.img` into a initramfs and mounts at `/`.
+3. ipxe downloads `/zfs/<platform-timestamp>/packages` as `/packages.tar`.
+4. ipxe downloads `/bootfs/<MAC>/network.json` as `/networking.json`
+5. The kernel starts, loads `initrd.img` into a initramfs and mounts at `/`.
    `/networking.json` and `/packages.tar` are visible.
-5. The live-boot scripts download `filesystem.squashfs` and creates the required
+6. The live-boot scripts download `filesystem.squashfs` and creates the required
    overlay mounts to make it writable.
-6. The ZFS packages are installed in the soon-to-be root file system, the ZFS
+7. The ZFS packages are installed in the soon-to-be root file system, the ZFS
    kernel modules are loaded, and any existing pool is imported and ZFS file
    systems critical to early boot are mounted.
-7. `/networking.json` is moved to a location that will be accessible in the new
+8. `/networking.json` is moved to a location that will be accessible in the new
    root.  This is at a path that a systemd generator will find it to generate
    the appropriate networking configuration under `/run/systemd`.
-8. live-boot pivots root and transfers control to systemd.
+9. live-boot pivots root and transfers control to systemd.
 
 ### Boot of a new CN
 
@@ -281,15 +285,14 @@ OS is booted, booter will be updated to cause the next boot to boot from the
 appropriate OS and trigger a reboot.  On this subsequent boot, the CN will be
 set up.
 
-
 ## Platform Image creation
 
 In general, the image creation process is:
 
-```
-$ git clone -b linuxcn https://github.com/joyent/linux-live
-$ cd linux-live
-$ sudo tools/debian-live
+```bash
+git clone -b linuxcn https://github.com/joyent/linux-live
+cd linux-live
+sudo tools/debian-live
 ```
 
 If all goes well, the final few lines will tell you what the name of the
@@ -320,15 +323,15 @@ which causes problems for some Joyent Makefiles.  To work around this:
 
 XXX-linuxcn: remove this advice once more cleanup happens
 
-```
-# dpkg-reconfigure dash
+```bash
+dpkg-reconfigure dash
 ```
 
 Follow the prompts to tell it that `/bin/sh` should be `bash`, not `dash`.
 
 Over time, each problematic `Makefile` should be changed to include:
 
-```
+```bash
 SHELL = /bin/bash
 ```
 
@@ -337,8 +340,8 @@ Note that `/bin/bash` works across various Linux distros and SmartOS.
 
 ##### Install ZFS
 
-See https://wiki.debian.org/ZFS#Installation or some other "Getting Started"
-link found at https://zfsonlinux.org/.  For licensing reasons, the installation
+See <https://wiki.debian.org/ZFS#Installation> or some other "Getting Started"
+link found at <https://zfsonlinux.org/>.  For licensing reasons, the installation
 will need to build ZFS, which will take several minutes.
 
 ### First boot build machine setup
@@ -350,14 +353,14 @@ Once you have a Debian instance with ZFS, perform the following steps.
 For now, the image creation script assumes that there is a pool named `triton`
 where it can create images.
 
-```
+```bash
 sudo zpool create triton /dev/vdb
 ```
 
 If you will be developing and testing agents on this box, you probably want to
 tell them that your pool is the system pool.
 
-```
+```bash
 sudo touch /triton/.system_pool
 ```
 
@@ -370,7 +373,7 @@ running on debian-live, see [4-zfs.md](4-zfs.md) and look for `sysusers`.
 Run the preflight check to see what other things you need.  If it tells you to
 install other packages, do the needful.
 
-```
+```bash
 $ git clone -b linuxcn https://github.com/joyent/linux-live
 $ cd linux-live
 $ ./tools/debian-live preflight_check
@@ -412,8 +415,8 @@ directory is an [sdcnode](https://github.com/joyent/sdcnode) build.
 
 As stated above, the typical way that an image is built is with:
 
-```
-$ sudo tools/debian-live
+```bash
+sudo tools/debian-live
 ```
 
 That's great when things will be smooth sailing from start to finish.  However,
@@ -424,7 +427,7 @@ beginning of any stage so that stage (and presumably others) can be executed.
 
 To list the available stages, use `tools/debian-live -h`:
 
-```
+```bash
 $ ./tools/debian-live -h
 ./tools/debian-live: illegal option -- h
 Usage:
@@ -453,7 +456,7 @@ Literal ... may be used to specify all remaining steps.
 
 If I only want to roll back to before `install_proto` and re-run that step:
 
-```
+```bash
 $ zfs list -Ho name | grep debian-live | tail -1
 triton/debian-live-20200105T222739Z
 
@@ -465,6 +468,6 @@ To inspect the outcome of that, you can `chroot
 will want to run `install_proto` and all steps after it.  You can use `...` for
 that.
 
-```
-$ sudo tools/debian-live -r 20200105T222739Z install_proto ...
+```bash
+sudo tools/debian-live -r 20200105T222739Z install_proto ...
 ```

@@ -24,12 +24,12 @@ This document describes how ZFS is used and limitations it imposes.
 In SmartOS, it made sense to call the pool `zones`.  Here, not so much.  Better
 names may be:
 
-- system:  Triton expects to use a system pool.  Naming a pool that is somewhat
+* system:  Triton expects to use a system pool.  Naming a pool that is somewhat
   attractive, but there's nothing saying that a pool with this name would be the
   system pool.  Maybe that would be confusing.  Also, if this pool is imported
   while running SmartOS, `/system` is already in use.
-- sys: Similar to the previous option, but that conflicts with `/sys` on Linux.
-- triton: Unlikely to be in use by anything else and is perfect until the next
+* sys: Similar to the previous option, but that conflicts with `/sys` on Linux.
+* triton: Unlikely to be in use by anything else and is perfect until the next
   rebranding.
 
 For now the default pool name shall be `triton`.
@@ -47,7 +47,7 @@ similar layout as SmartOS.
 
 Some examples:
 
-```
+```bash
 zfs create -o mountpoint=/zones zones
 zfs create -o mountpoint=/opt zones/opt
 zfs create -o mountpoint=/var/lib/lxd zones/lxd
@@ -59,21 +59,21 @@ An alternative plan is to create a hierarchy under `zones/system` such
 that file systems under that are automatically mounted over directories in the
 root file system.
 
-```
+```bash
 zfs create -o canmount=noauto -o mountpoint=/ zones/system
 ```
 
 Now, datasets under that dataset automatically get the right mountpoint.  For
 example, this will create the file system that gets mounted at `/opt`.
 
-```
+```bash
 zfs create zones/system/opt
 ```
 
 When needing to create a spot in the directory hierarchy that shouldn't get
 mounted over the root file system, just set `canmount=noauto`.
 
-```
+```bash
 # Create the root
 zfs create -o canmount=noauto -o mountpoint=/ zones/system
 
@@ -119,17 +119,16 @@ that exist in the system zpool, there are *hook scripts* and *boot scripts*, as
 described in `initramfs-tools(7)`, that ensure that the persistent data stored
 in ZFS is mounted before systemd starts.  In particular:
 
-- [sethostid](../src/sethostid) is run to set the hostid to a hash of the
+* [sethostid](../src/sethostid) is run to set the hostid to a hash of the
   system's UUID.  This is the same system UUID that is used by Triton.
-- The [triton](../proto/usr/share/initramfs-tools/hooks/triton) *hook script*
+* The [triton](../proto/usr/share/initramfs-tools/hooks/triton) *hook script*
   ensures that `sethostid`, `dmidecode`, and any libraries they require are in
   `initrd`.
-- The [syspool](../proto/usr/share/initramfs-tools/scripts/live-bottom/syspool)
+* The [syspool](../proto/usr/share/initramfs-tools/scripts/live-bottom/syspool)
   *boot script* runs at boot to find the system pool, import it, and mount the
   ZFS file systems that are needed early in boot.  Services that can start later
   (e.g. Triton agents) should include `After=zfs.target` so they start after the
   systemd mounts the remaining datasets.
-
 
 ## Future directions
 
