@@ -51,6 +51,7 @@ fi
 DEFAULT_AGENTS_DIR="/usr/triton/defaults/agents"
 for agent in "${DEFAULT_AGENTS_DIR}"/*
 do
+    agent="$(basename "$agent")"
     if [[ $agent == "ur-agent" ]]; then
         # We don't normally register ur-agent - leave it be.
         continue
