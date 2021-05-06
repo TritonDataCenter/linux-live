@@ -58,6 +58,7 @@ packages+=(
     curl
     dnsutils
     extrace
+    ipmitool
     iproute2
     iputils-ping
     jq
