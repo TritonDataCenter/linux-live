@@ -116,9 +116,9 @@ clean=()
 function cleanup {
 	local i=${#clean[@]}
 
-	while (( $i > 0 )); do
+	while (( i > 0 )); do
 		(( i-- ))
-		eval ${clean[i]}
+		eval "${clean[i]}"
 	done
 
 	if [[ $clean_exit != true ]]; then
@@ -139,7 +139,7 @@ function onfatal {
 
 function unmount_children {
 	local dirs
-	mapfile -t dirs < <(mount | awk -v root=$root/ '
+	mapfile -t dirs < <(mount | awk -v root="$root/" '
 	BEGIN {
 		if ( root == "/" || root == "" ) {
 			printf "cleanup: root is \"%s\"\n", root >/dev/fd/2
@@ -176,7 +176,7 @@ function preflight_check {
 
 	local missing=() status
 	for pkg in "${packages[@]}"; do
-		status=$(dpkg-query -W -f '${db:Status-Status}' $pkg \
+		status=$(dpkg-query -W -f '${db:Status-Status}' "$pkg" \
 		    2>/dev/null || true)
 		if [[ $status != installed ]]; then
 			missing+=( "$pkg" )
@@ -250,7 +250,7 @@ function install_temporary_packages {
 # squashfs or initrd files.  They can be built, but the artifacts should be
 # stored in a way that they can be excluded from distributed images.
 function build_zfs {
-	# shellcheck disable=2016
+	# shellcheck disable=1004 disable=2016
 	chroot "$root" env zfs_ver=$zfs_ver bash -c '
 	    PS4="BUILD_ZFS: "
 	    set -xeuo pipefail
@@ -344,6 +344,7 @@ function install_usr_triton {
 #   - disklayout
 #   - mkzpool
 function install_usr_triton_helper_scripts {
+	# shellcheck disable=1004 disable=2016
 	chroot "$root" bash -c '
 	    PS4="INSTALL_USR_TRITON_HELPER_SCRIPTS: "
 	    set -xeuo pipefail
@@ -515,7 +516,7 @@ function install_usr_triton_vminfod {
 
 
 function install_proto {
-	(cd $repo/src && make install)
+	(cd "$repo/src" && make install)
 
 	# cpio is used for creating the archive because it will take a list of
 	# files from stdin.  tar is used for extracting it because it will
@@ -587,7 +588,7 @@ function install_lxd {
 
 function postinstall {
 	# Heavily inspired by mi-debian-hvm/debian-10/late-command
-	# shellcheck disable=2016
+	# shellcheck disable=1004 disable=2016
 	chroot "$root" env release="$release" motd="$motd" product="$product" \
 	    relase="$release" \
 	    bash -c '
@@ -636,10 +637,10 @@ function postinstall {
 }
 
 function prepare_archive_bits {
-	mkdir -p $image/live
-	mksquashfs $root $image/live/filesystem.squashfs -noappend -e boot
-	cp $root/vmlinuz $image/vmlinuz
-	cp $root/initrd.img $image/initrd
+	mkdir -p "$image/live"
+	mksquashfs "$root" "$image/live/filesystem.squashfs" -noappend -e boot
+	cp "$root/vmlinuz" "$image/vmlinuz"
+	cp "$root/initrd.img" "$image/initrd"
 
 	cat <<EOF >"$scratch/grub.cfg"
 search --set=root --file /JOYENT_DEBIAN_LIVE
@@ -707,30 +708,30 @@ EOF
 	cp "$image/live/filesystem.squashfs" "$dir_m/filesystem.squashfs"
 
 	(cd "$scratch" &&
-	    tar cf - platform-$release | pigz > $top/platform-$release.tgz)
+	    tar cf - "platform-$release" | pigz > "$top/platform-$release.tgz")
 	ln -f -s "${top}/platform-$release.tgz" "$top/../platform-latest.tgz"
 
 }
 
 function create_iso {
-	grub-mkstandalone --format=x86_64-efi --output=$scratch/bootx64.efi \
+	grub-mkstandalone --format=x86_64-efi --output="$scratch/bootx64.efi" \
 	    --locales="" --fonts="" "boot/grub/grub.cfg=$scratch/grub.cfg"
 
-	grub-mkstandalone --format=i386-pc --output=$scratch/core.img \
+	grub-mkstandalone --format=i386-pc --output="$scratch/core.img" \
 	    --install-modules="linux normal iso9660 biosdisk serial memdisk search tar ls" \
 	    --modules="linux normal iso9660 biosdisk serial search" --locales="" \
 	    --fonts="" "boot/grub/grub.cfg=$scratch/grub.cfg"
 
 	# mcopy, mmd from mtools - Not Manta!
-	(cd $scratch && \
+	(cd "$scratch" && \
 	    dd if=/dev/zero of=efiboot.img bs=1M count=10 && \
 	    mkfs.vfat efiboot.img && \
 	    mmd -i efiboot.img efi efi/boot && \
 	    mcopy -i efiboot.img ./bootx64.efi ::efi/boot/
 	)
 
-	cat /usr/lib/grub/i386-pc/cdboot.img $scratch/core.img > \
-	    $scratch/bios.img
+	cat /usr/lib/grub/i386-pc/cdboot.img "$scratch/core.img" > \
+	    "$scratch/bios.img"
 
 	xorriso -as mkisofs -iso-level 3 -full-iso9660-filenames \
 	    -volid "JOYENT_DEBIAN_LIVE" -eltorito-boot boot/grub/bios.img \
@@ -738,10 +739,10 @@ function create_iso {
 	    --eltorito-catalog boot/grub/boot.cat --grub2-boot-info \
 	    --grub2-mbr /usr/lib/grub/i386-pc/boot_hybrid.img \
 	    -eltorito-alt-boot -e EFI/efiboot.img -no-emul-boot \
-	    -append_partition 2 0xef $scratch/efiboot.img \
+	    -append_partition 2 0xef "$scratch/efiboot.img" \
 	    -output "$top/joyent-debian_live-$release.iso" \
-	    -graft-points "$image" /boot/grub/bios.img=$scratch/bios.img \
-	    /EFI/efiboot.img=$scratch/efiboot.img
+	    -graft-points "$image" /boot/grub/bios.img="$scratch/bios.img" \
+	    /EFI/efiboot.img="$scratch/efiboot.img"
 
 	    ln -f -s "${top}/joyent-debian_live-$release.iso" "$top/../joyent-debian_live-latest.iso"
 }
@@ -761,7 +762,7 @@ function create_usb {
 	local esp_mnt=$scratch/mnt/esp
 	local image_start=$(( esp_end + 1 ))
 	local image_sec
-	      image_sec=$(du -sk $image | awk '{printf "%0.f\n", $1 * 2 * 1.2}')
+	      image_sec=$(du -sk "$image" | awk '{printf "%0.f\n", $1 * 2 * 1.2}')
 	local image_mnt=$scratch/mnt/image
 	local total_sec=$(( image_start + image_sec ))
 	local disk_mb=$(( total_sec / 2 / 1024 + 1 ))
@@ -826,15 +827,15 @@ function create_usb {
 	cleanup+=("onfatal umount $image_dev")
 
 	grub-install --target=x86_64-efi \
-	    --efi-directory=$esp_mnt --boot-directory=$image_mnt/boot \
+	    --efi-directory="$esp_mnt" --boot-directory="$image_mnt/boot" \
 	    --removable --recheck
 
-	grub-install --target=i386-pc --boot-directory=$image_mnt/boot \
+	grub-install --target=i386-pc --boot-directory="$image_mnt/boot" \
 	    --recheck "$disk_file"
 
-	mkdir -p $image_mnt/boot/grub $image_mnt/live
-	cp -r $image/* "$image_mnt"
-	cp $scratch/grub.cfg $image_mnt/boot/grub/grub.cfg
+	mkdir -p "$image_mnt/boot/grub" "$image_mnt/live"
+	cp -r "$image"/* "$image_mnt"
+	cp "$scratch/grub.cfg" "$image_mnt/boot/grub/grub.cfg"
 
 	umount "$image_mnt"
 	umount "$esp_mnt"
@@ -871,7 +872,7 @@ function run {
 	if [[ $postSnapExits == "yes" ]]; then
 		zfs destroy -f "$postsnap"
 	fi
-	zfs snapshot $postsnap
+	zfs snapshot "$postsnap"
 }
 
 function usage {
@@ -1039,4 +1040,4 @@ ln -f -s "$release" "$top/../latest"
 clean_exit=true
 set +x
 
-ls -lh $top/*.iso $top/*.usb.gz $top/*.tgz 2>/dev/null || :
+ls -lh "$top/*.iso" "$top/*.usb.gz" "$top/*.tgz" 2>/dev/null || :
