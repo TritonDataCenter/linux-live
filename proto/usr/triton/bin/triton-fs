@@ -19,6 +19,10 @@
 # * factory reset
 #
 
+set -o errexit
+set -o pipefail
+set -o xtrace
+
 # Assume the system zpool is zones, but if a different system pool
 # identifies itself (by virtue of the .system_pool file being present in the
 # pool's root dataset), then use that system pool instead.
