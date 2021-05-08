@@ -23,6 +23,11 @@ set -o errexit
 set -o pipefail
 set -o xtrace
 
+# This is here just to show us what the state of the system is in the journal
+zpool status
+zfs list
+mount | grep zones
+
 # Assume the system zpool is zones, but if a different system pool
 # identifies itself (by virtue of the .system_pool file being present in the
 # pool's root dataset), then use that system pool instead.
