@@ -14,9 +14,7 @@ export PATH=/bin:/usr/bin:/usr/sbin
 
 set -euo pipefail
 
-keyfiles=($(awk '$1 == "HostKey" {print $2}' /etc/ssh/sshd_config))
-
-declare -A checked
+mapfile -t keyfiles < <(awk '$1 == "HostKey" {print $2}' /etc/ssh/sshd_config)
 
 for path in "${keyfiles[@]}"; do
 	if [[ -f $path ]]; then
