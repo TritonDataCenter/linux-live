@@ -27,6 +27,7 @@ set -o xtrace
 zpool status
 zfs list
 mount | grep zones
+systemctl status
 
 # Assume the system zpool is zones, but if a different system pool
 # identifies itself (by virtue of the .system_pool file being present in the
@@ -72,4 +73,10 @@ fi
 reset=$(zfs get -H -o value smartdc:factoryreset ${SYS_ZPOOL}/var)
 if [ "${reset}" == "yes" ]; then
     destroy_zpools
+fi
+
+# If we're here, then we're in a normal boot up. Do some housekeeping taks
+#
+if [[ -f /zones/global/conres ]]; then
+    ln -s /zones/global/cores /cores
 fi
