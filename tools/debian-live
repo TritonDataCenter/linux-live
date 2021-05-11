@@ -173,6 +173,7 @@ function preflight_check {
 		pigz			# called by this script
 		squashfs-tools		# mksquashfs called by this script
 		xorriso			# called by this script
+		pwgen			# called by this script
 	)
 
 	local missing=() status
@@ -303,6 +304,7 @@ function remove_temporary_packages {
 		export LC_ALL=C
 
 		apt remove -y $pkgs "kernel-headers-*"
+		apt-get autoremove -y
 
 		rm -f /tmp/zfs-modules-*.deb
 	'
@@ -632,6 +634,9 @@ function postinstall {
 		# As above, clean cruft here.
 		rm -f /etc/sudoers.d/*
 
+		# Make sure cores are stashed safely
+		echo "kernel.core_pattern = /zones/global/cores/core.%e.%p" > /etc/sysctl.conf
+
 		depmod -a $(basename /lib/modules/*)
 		update-initramfs -u
 	    '
@@ -685,8 +690,8 @@ function create_tgz {
         "repo": "linux-live",
         "branch": "$(git branch | grep "^* " | cut -d ' ' -f2-)",
         "commit_date": "$(git log -n 1 --pretty=format:%ct HEAD)",
-	"rev": "$(git rev-parse HEAD)",
-	"upstream_master_commit": "$(git rev-parse origin/master)",
+        "rev": "$(git rev-parse HEAD)",
+        "upstream_master_commit": "$(git rev-parse origin/master)",
         "url": "$(git config remote.origin.url)"
     }
 ]
@@ -1019,6 +1024,20 @@ motd=$'
                    /  ;  Platform ('"$name"' '"$release"$')
                    `-\'   '"$docurl"'
 '
+motd_alt='
+            *--+--*--*
+           /| /| /| /|    J O Y E N T
+          / |/ |/ |/ |    #####  ####   #  #####  ###   #   # TM
+         +--*--+--*--*      #    #   #  #    #   #   #  ##  #
+         | /| /| /| /|      #    ####   #    #   #   #  # # #
+         |/ |/ |/ |/ |      #    #  #   #    #   #   #  #  ##
+         *--+--+--+--+      #    #   #  #    #    ###   #   #
+         | /| /| /| /
+         |/ |/ |/ |/       Linux ('"$name"')
+         *--*--+--*         build: '"$release"'
+
+'
+: "$motd_alt"
 
 commit=$(cd "$(dirname "$0")" && git rev-parse HEAD)
 product="
