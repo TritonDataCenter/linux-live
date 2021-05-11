@@ -28,6 +28,7 @@ zpool status
 zfs list
 mount | grep zones
 systemctl status
+systemctl -a | grep zfs | grep -v device
 
 # Assume the system zpool is zones, but if a different system pool
 # identifies itself (by virtue of the .system_pool file being present in the
