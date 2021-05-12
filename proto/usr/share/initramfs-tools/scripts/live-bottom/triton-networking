@@ -28,6 +28,7 @@ log_begin_msg "triton-networking"
 
 triton_networking_file="/etc/triton-networking.json"
 triton_config_dir=$(getTritonConfigDir)
+node_config_file="/etc/node.config"
 
 if [ -f "${triton_networking_file}" ]; then
 	cp "${triton_networking_file}" "${triton_config_dir}"
@@ -42,10 +43,10 @@ IPprefix_by_netmask() {
     if ! expr "${netmask}" : '[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$' >/dev/null; then
         return 0
     fi
-    
+
     bits=0
-    for octet in $(echo $netmask | sed 's/\./ /g'); do 
-         binbits=$(echo "obase=2; ibase=10; ${octet}"| bc | sed 's/0//g') 
+    for octet in $(echo $netmask | sed 's/\./ /g'); do
+         binbits=$(echo "obase=2; ibase=10; ${octet}"| bc | sed 's/0//g')
          bits=$(expr $bits + ${#binbits})
     done
     echo "/${bits}"
@@ -56,6 +57,14 @@ IPprefix_by_netmask() {
 get_device_by_hwaddr ()
 {
     LANG=C ip -o link | awk -F ': ' -vIGNORECASE=1 '!/link\/ieee802\.11/ && /'"$1"'/ { print $2 }'
+}
+
+# Normally we'd use the standard config load mechanisms but this is so early
+# in boot that's not available yet.
+get_config_value ()
+{
+    _config_key="$1"
+    awk -F= '/^'"${_config_key}"'=/ {print $2}' "$node_config_file" | tr -d \'
 }
 
 # Get the admin nic tag name
@@ -90,6 +99,12 @@ if [ "${resolvers}" != "" ]; then
     echo "nameserver ${resolvers}" >> "/etc/resolv.conf"
 fi
 
+# Set NTP to use headnode
+ntp_hosts=$(get_config_value ntp_hosts)
+if [ "$ntp_hosts" != "" ]; then
+    sed -i "s/#NTP=/NTP=${ntp_hosts}/" "${rootmnt}/etc/systemd/timesyncd.conf"
+fi
+
 # Create network devices
 counter=0
 while IFS=$'\t' read -r mac nictag mtu ip netmask gateway resolvers; do
@@ -104,11 +119,14 @@ Address=${ip}$(IPprefix_by_netmask ${netmask})
 EOF
 
     # Add DNS resolvers - they are comma separated, e.g. "8.8.8.8,8.8.4.4"
-    if [ "$resolvers" != "" ]; then
-        for dns in $(echo "${resolvers}" | sed "s/,/ /g"); do
+    dns_resolvers=$(get_config_value dns_resolvers)
+    if [ "$resolvers" != "" -a "$dns_resolvers" != "" ]; then
+        for dns in $(echo "${resolvers},${dns_resolvers}" | sed "s/,/ /g"); do
             echo "DNS=${dns}" >> "${filename}"
         done
     fi
+    # Disable DNSSEC
+    echo "DNSSEC=false" >> "${filename}"
 
     # Ensure we use triton resolvers to resolve triton domain
     if [ "$nictag" == "$admin_nic_tag" ]; then
