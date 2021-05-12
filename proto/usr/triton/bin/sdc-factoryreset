@@ -11,8 +11,7 @@
 
 #
 # This is almost a verbatim copy of sdc-factoryreset from smartos-live.
-# The only change is to assume the pool is named `zones` insetad of asking
-# SMF.
+# The only change is to find the pool name via symink instead of asking smf.
 #
 
 #
@@ -23,7 +22,7 @@
 set -o errexit
 set -o pipefail
 
-myname=$(basename "$0")
+myname=$(basename $0)
 
 function abort()
 {
@@ -33,7 +32,7 @@ function abort()
 
 function usage()
 {
-	printf "\nUsage: %s [-h | --help]\n\n" "$myname"
+	printf "\nUsage: $myname [-h | --help]\n\n"
 	printf "Resets a machine to its originally installed state.  See "
 	printf "sdc-factoryreset(1)\nfor more information.\n"
 	exit 1
@@ -56,22 +55,20 @@ trap abort SIGINT
 printf "WARNING: This machine will reboot and destroy its ZFS pools after "
 printf "rebooting.\n"
 
-read -r -p "Do you want to proceed with the factory reset? (y/n) " -n 1
+read -p "Do you want to proceed with the factory reset? (y/n) " -n 1
 
 if [[ $REPLY =~ ^[Yy]$ ]]; then
 	printf "\n\nThis will destroy ALL DATA on the system, including "
 	printf "potential customer data.\n"
 
-	read -r -p "Are you sure? (y/n) " -n 1
+	read -p "Are you sure? (y/n) " -n 1
 
 	if [[ $REPLY =~ ^[Yy]$ ]]; then
 		printf "\n\nRebooting in 5 seconds ... "
 		sleep 5
 		printf "now!\n"
 
-		# We're going to assume zones for now. There should be a better
-		# way to do this.
-		SYS_ZPOOL=zones
+		SYS_ZPOOL=$(basename "$(readlink /run/triton/system_pool)")
 		[[ -n ${SYS_ZPOOL} ]] || SYS_ZPOOL=zones
 
 		zfs set smartdc:factoryreset=yes ${SYS_ZPOOL}/var
