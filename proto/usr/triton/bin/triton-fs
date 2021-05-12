@@ -46,6 +46,11 @@ for pool in "${all_pools[@]}"; do
     fi
 done
 
+if (( ${#all_pools[@]} < 1 )); then
+    printf 'No pools. Exiting.\n'
+    exit 0
+fi
+
 # Deal with noimport
 # Because we're being called after zfs-import.target, the pool (if it exists)
 # will already be imported. In this case, we'll simply unmount it.
@@ -67,13 +72,15 @@ function destroy_zpools
 
 # If the destroy_zpools boot parameter is set, destroy all zpools
 if grep -q -w 'destroy_zpools=true' /proc/cmdline ; then
+    printf 'destroy_pools kernel command detected.\n'
     destroy_zpools
 fi
 
 # A machine is reset to its original unsetup state (i.e. a 'factory reset')
 # when the smartdc:factoryreset ZFS user property is set on the var dataset.
-reset=$(zfs get -H -o value smartdc:factoryreset ${SYS_ZPOOL}/var)
+reset=$(zfs get -H -o value smartdc:factoryreset "${SYS_ZPOOL}/var")
 if [ "${reset}" == "yes" ]; then
+    printf '%s/var dataset has factoryrest property.\n' "${SYS_ZPOOL}"
     destroy_zpools
 fi
 
