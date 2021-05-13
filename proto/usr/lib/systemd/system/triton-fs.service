@@ -18,8 +18,12 @@
 [Unit]
 Description=Triton Filesystem Service
 Documentation=Supplementary Triton filesystem features
-After=zfs-import.target
-Before=triton-cn-agent.service triton-config-agent.service triton-hostid.service triton-install-lxd.service triton-lxd.service triton-net-agent.service triton-ssh-hostkey.service triton-ur-agent.service triton-vm-agent.service zfs-mount.service
+Before=zfs-import-cache.service
+Before=zfs-import-scan.service
+Before=zfs-import.service
+After=systemd-udev-settle.service
+After=cryptsetup.target
+After=multipathd.target
 
 [Service]
 Type=oneshot
@@ -27,4 +31,6 @@ RemainAfterExit=false
 ExecStart=/usr/triton/bin/triton-fs
 
 [Install]
-RequiredBy=zfs-mount.service
+RequiredBy=zfs-import-cache.service
+RequiredBy=zfs-import-scan.service
+RequiredBy=zfs-import.service
