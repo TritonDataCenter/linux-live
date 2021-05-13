@@ -18,6 +18,7 @@ if [ "$1" = "prereqs" ]; then
 	exit 0
 fi
 
+# shellcheck disable=1091
 . /scripts/functions
 
 log_begin_msg "triton-syspool"
@@ -25,10 +26,10 @@ log_begin_msg "triton-syspool"
 is_syspool()
 {
 	p=$1
-	zfs mount $p || return 1
+	zfs mount "$p" || return 1
 
-	mp=`zfs list -Ho mountpoint $p`
-	if [ -f $mp/.system_pool ]; then
+	mp=$(zfs list -Ho mountpoint "$p")
+	if [ -f "$mp/.system_pool" ]; then
 		return 0
 	fi
 	zfs umount "$p"
@@ -40,23 +41,50 @@ modprobe zfs
 zpool import -aN
 
 syspool=
-for pool in `zfs list -Ho name -d0`; do
-	if is_syspool $pool; then
-		# echo "MG pool $pool is the system pool"
+for pool in $(zfs list -Ho name -d0); do
+	if is_syspool "$pool"; then
 		syspool=$pool
+		ln -s "/${syspool}/" /run/triton/system_pool
 		break
 	fi
-	# echo "MG pool $pool is not the system pool"
 done
+
+# Handle factoryreset
+if grep -q -w 'destroy_zpools=true' /proc/cmdline ; then
+    printf 'destroy_pools kernel command detected.\n'
+    destroy_zpools=1
+fi
+reset=$(zfs get -H -o value smartdc:factoryreset "${syspool}/var")
+if [ "${reset}" = "yes" ]; then
+    printf '%s/var dataset has factoryrest property.\n' "${syspool}"
+    destroy_zpools=1
+fi
+
+if [ -n "${destroy_zpools}" ]; then
+	zpool destroy "$syspool"
+	exit
+fi
+
+# XXX - TODO: We want to handle noimport here, but even if we export the pool
+# the builtin systemd zfs mounting stuff will re-import it later.
+if grep -q -w noimport=true /proc/cmdline ; then
+	for pool in $(zfs list -Ho name -d0); do
+		zpool export "$pool"
+	done
+	exit 0
+fi
 
 # Mount all available zfs filesystems in the system zpool.
 if [ -n "$syspool" ]; then
 	(zfs list -Ho canmount,name,mountpoint -p -r "$syspool" || true) | \
 	while IFS=$'\t' read canmount name mountpoint; do
 		[ "$canmount" = on ] || continue
-		mp=$rootmnt/$mountpoint
+		# shellcheck disable=2154
+		mp="$rootmnt/$mountpoint"
 		mkdir -p "$mp"
 		#echo "Triton mounting zfs dataset $name on $mp"
+		# XXX - TODO: This improperly mounts legacy.
+		# E.g., zones/var gets mounted on /legacy.
 		mount -o zfsutil -t zfs "$name" "$mp"
 	done
 fi
