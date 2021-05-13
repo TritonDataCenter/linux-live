@@ -32,6 +32,9 @@ set -o errexit
 set -o pipefail
 set -o xtrace
 
+# First import all pools.
+zpool import -aN -o cachefile=none
+
 # Assume the system zpool is zones, but if a different system pool
 # identifies itself (by virtue of the .system_pool file being present in the
 # pool's root dataset), then use that system pool instead.
@@ -89,3 +92,8 @@ fi
 if [[ -f /zones/global/cores ]]; then
     ln -s /zones/global/cores /cores
 fi
+
+# Now export all pools so we're clean before the systemd zfs target.
+for pool in "${all_pools[@]}"; do
+    zpool export "$pool"
+done
