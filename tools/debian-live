@@ -76,6 +76,7 @@ packages+=(
     ntpdate
     openssh-server
     psmisc
+    rsync
     screen
     socat
     strace
