@@ -8,7 +8,7 @@
 # Copyright 2020 Joyent, Inc.
 #
 
-SUBDIRS		= sethostid
+SUBDIRS		= sethostid.rs
 
 all install clean:
 	for dir in $(SUBDIRS); do \

@@ -7,7 +7,7 @@
 #
 
 #
-# Copyright 2020 Joyent, Inc.
+# Copyright 2021 Joyent, Inc.
 #
 
 #
@@ -34,12 +34,19 @@ unset SUDO_GID
 unset SUDO_UID
 unset SUDO_USER
 
+# Detect rust, if it's a user install
+if [[ -f ~/.cargo/env ]]; then
+	# shellcheck disable=SC1090
+	source ~/.cargo/env
+fi
+
 debver=buster
 name="Debian 10"
 docurl=https://github.com/joyent/linux-live
 
 kernel_version=5.10.0-0.bpo.5
 zfs_ver=2.0.3
+rust_version=1.5.2
 
 # From https://willhaley.com/blog/custom-debian-live-environment/
 packages=(live-boot systemd-sysv)
@@ -177,6 +184,7 @@ function preflight_check {
 	)
 
 	local missing=() status
+	local missing_rust=true
 	for pkg in "${packages[@]}"; do
 		status=$(dpkg-query -W -f '${db:Status-Status}' "$pkg" \
 		    2>/dev/null || true)
@@ -184,12 +192,21 @@ function preflight_check {
 			missing+=( "$pkg" )
 		fi
 	done
-	if (( ${#missing[@]} == 0 )); then
+	if command -v rustc && command -v cargo ; then
+		missing_rust=false
+	fi
+	if (( ${#missing[@]} == 0 )) && [[ "$missing_rust" == "false" ]]; then
 		return 0
 	fi
 	if [[ $install_missing == true ]]; then
 		apt update
 		apt install -y "${missing[@]}"
+		if [[ $missing_rust == "true" ]]; then
+			curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+				sh -s -- -q -y --profile minimal \
+				--default-host x86_64-unknown-linux-gnu \
+				--default-toolchain "$rust_version"
+		fi
 		return 0
 	fi
 
@@ -198,6 +215,8 @@ function preflight_check {
 	echo ""
 	echo "To fix, run:"
 	echo "    apt install -y ${missing[*]}"
+	echo "Then:"
+	echo "    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain $rust_version"
 	exit 1
 }
 
@@ -638,6 +657,8 @@ function postinstall {
 
 		rm -f /*.old
 
+		sed -i -e "s/^#DNSSEC=.*/DNSSEC=false/" /etc/systemd/resolved.conf
+
 		# The root home directory has nothing useful in it. Removing it
 		# makes it possible to have a dataset mounted on /root, thereby
 		# easily preserving SSH authorized_keys and such.
@@ -992,6 +1013,12 @@ fi
 # Do the preflight_check early to avoid erroring out when trying to use commands
 # like `git` that may not already be installed.
 preflight_check
+
+# If rust was newly installed, we'll need to do this again.
+if [[ -f ~/.cargo/env ]]; then
+	# shellcheck disable=SC1090
+	source ~/.cargo/env
+fi
 
 if [[ -z $dataset ]]; then
 	pools=()
