@@ -5,7 +5,9 @@
 #
 
 #
-# Copyright 2020 Joyent, Inc.
+# Copyright 2021 Joyent, Inc.
 #
+
+# shellcheck shell=bash
 
 PATH=/usr/node/bin:/usr/triton/bin:$PATH:/usr/local/lxd/bin

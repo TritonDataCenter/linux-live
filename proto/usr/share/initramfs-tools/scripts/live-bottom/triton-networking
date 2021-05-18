@@ -21,7 +21,9 @@ if [ "$1" = "prereqs" ]; then
 	exit 0
 fi
 
+# shellcheck disable=SC1091
 . /scripts/functions
+# shellcheck disable=SC1091
 . /scripts/triton
 
 log_begin_msg "triton-networking"
@@ -45,7 +47,7 @@ IPprefix_by_netmask() {
     fi
 
     bits=0
-    for octet in $(echo $netmask | sed 's/\./ /g'); do
+    for octet in $(echo "$netmask" | sed 's/\./ /g'); do
          binbits=$(echo "obase=2; ibase=10; ${octet}"| bc | sed 's/0//g')
          bits=$(expr $bits + ${#binbits})
     done
@@ -73,7 +75,7 @@ admin_nic_tag=$(jq -r '.admin_tag // "admin"' "${triton_networking_file}")
 # Set hostname
 hostname=$(jq -e -r '.hostname // empty' "${triton_networking_file}" || echo "")
 if [ "${hostname}" != "" ]; then
-    echo "${hostname}" > "${rootmnt}/etc/hostname"
+    echo "${hostname}" > "${rootmnt:-/}/etc/hostname"
 else
     # Set the hostname to be derived from the admin mac
     admin_mac=$(jq -r '.nictags[] | select(.name == "'"${admin_nic_tag}"'") | .mac' "${triton_networking_file}")
@@ -86,7 +88,7 @@ fi
 # Set domain name
 datacenter_name=$(jq -r '.datacenter_name // empty' "${triton_networking_file}")
 dns_domain=$(jq -r '.dns_domain // empty' "${triton_networking_file}")
-if [ "${dns_domain}" != "" -a "${datacenter_name}" != "" ]; then
+if [ "${dns_domain}" != "" ] && [ "${datacenter_name}" != "" ]; then
     sed -i "s/#Domains=/Domains=${datacenter_name}.${dns_domain}/" "${rootmnt}/etc/systemd/resolved.conf"
     echo "domain ${datacenter_name}.${dns_domain}" >> "/etc/resolv.conf"
 fi
@@ -107,10 +109,11 @@ fi
 
 # Create network devices
 counter=0
-while IFS=$'\t' read -r mac nictag mtu ip netmask gateway resolvers; do
+while IFS="$(printf '\t')" read -r mac nictag mtu ip netmask gateway resolvers; do
     counter=$((counter+1))
     filename="${rootmnt}/etc/systemd/network/0${counter}-${nictag}.network"
-    cat <<EOF >> "${filename}"
+    # shellcheck disable=SC2086
+    cat << EOF >> "${filename}"
 [Match]
 MACAddress=${mac}
 
@@ -120,7 +123,7 @@ EOF
 
     # Add DNS resolvers - they are comma separated, e.g. "8.8.8.8,8.8.4.4"
     dns_resolvers=$(get_config_value dns_resolvers)
-    if [ "$resolvers" != "" -a "$dns_resolvers" != "" ]; then
+    if [ "$resolvers" != "" ] && [ "$dns_resolvers" != "" ]; then
         for dns in $(echo "${resolvers},${dns_resolvers}" | sed "s/,/ /g"); do
             echo "DNS=${dns}" >> "${filename}"
         done
@@ -129,7 +132,7 @@ EOF
     echo "DNSSEC=false" >> "${filename}"
 
     # Ensure we use triton resolvers to resolve triton domain
-    if [ "$nictag" == "$admin_nic_tag" ]; then
+    if [ "$nictag" = "$admin_nic_tag" ]; then
             echo "Domains=${datacenter_name}.${dns_domain}" >> "${filename}"
     fi
 
@@ -140,7 +143,7 @@ EOF
 
     # Add MTU
     if [ "$mtu" != "null" ]; then
-        echo -e "\n[Link]" >> "${filename}"
+        printf "\n[Link]\n" >> "${filename}"
         echo "MTUBytes=${mtu}" >> "${filename}"
     fi
 
@@ -154,7 +157,7 @@ MACAddress=${mac}
 Name=${nictag}
 EOF
 
-    if [ "${nictag}" == "${admin_nic_tag}" ]; then
+    if [ "${nictag}" = "${admin_nic_tag}" ]; then
         # The admin (iPXE) nic cannot be renamed whilst it is in use, so we
         # must manually stop the nic, rename it and then restart it.
         linkname=$(get_device_by_hwaddr "${mac}")
