@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/sh
 
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright 2019 Joyent, Inc.
+# Copyright 2021 Joyent, Inc.
 #
 
 #
@@ -44,6 +44,8 @@ syspool=
 for pool in $(zfs list -Ho name -d0); do
 	if is_syspool "$pool"; then
 		syspool=$pool
+		log_success_msg "System pool is ${syspool}"
+		mkdir -p /run/triton || true
 		ln -s "/${syspool}/" /run/triton/system_pool
 		break
 	fi
@@ -51,17 +53,24 @@ done
 
 # Handle factoryreset
 if grep -q -w 'destroy_zpools=true' /proc/cmdline ; then
-    printf 'destroy_pools kernel command detected.\n'
-    destroy_zpools=1
+	log_warning_msg 'destroy_pools kernel command detected.'
+	destroy_zpools=1
 fi
 reset=$(zfs get -H -o value smartdc:factoryreset "${syspool}/var")
 if [ "${reset}" = "yes" ]; then
-    printf '%s/var dataset has factoryrest property.\n' "${syspool}"
-    destroy_zpools=1
+	log_warning_msg "${syspool}/var dataset has factoryrest property."
+	destroy_zpools=1
 fi
 
 if [ -n "${destroy_zpools}" ]; then
-	zpool destroy "$syspool"
+	destroy_out=$(zpool destroy "$syspool" 2>&1)
+	destroy_retval=$?
+	if [ $destroy_retval -gt 0 ] ; then
+		log_success_msg "zpool destroy succeeded"
+		log_success_msg "$(zpool list)"
+	else
+		log_failure_msg "zpool destroy failed with code $destroy_retval: $destroy_out"
+	fi
 	exit
 fi
 
@@ -69,7 +78,14 @@ fi
 # the builtin systemd zfs mounting stuff will re-import it later.
 if grep -q -w noimport=true /proc/cmdline ; then
 	for pool in $(zfs list -Ho name -d0); do
-		zpool export "$pool"
+		export_out=$(zpool export "$pool" 2>&1)
+		export_retval=$?
+		if [ $export_retval -gt 0 ]; then
+			log_failure_msg "zpool export failed with code $export_retval: $export_out"
+		else
+			log_success_msg "zpool exported"
+			log_success_msg "$(zpool list)"
+		fi
 	done
 	exit 0
 fi
@@ -77,7 +93,7 @@ fi
 # Mount all available zfs filesystems in the system zpool.
 if [ -n "$syspool" ]; then
 	(zfs list -Ho canmount,name,mountpoint -p -r "$syspool" || true) | \
-	while IFS=$'\t' read canmount name mountpoint; do
+	while IFS="$(printf '\t')" read -r canmount name mountpoint; do
 		[ "$canmount" = on ] || continue
 		# shellcheck disable=2154
 		mp="$rootmnt/$mountpoint"
