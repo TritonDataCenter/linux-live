@@ -21,7 +21,9 @@ if [ "$1" = "prereqs" ]; then
 	exit 0
 fi
 
+# shellcheck disable=SC1091
 . /scripts/functions
+# shellcheck disable=SC1091
 . /scripts/triton
 
 # set -o xtrace
@@ -37,7 +39,7 @@ if [ -f "${node_config_file}" ]; then
 
     # Set the default root password.
     root_shadow=$(grep 'root_shadow=' "${node_config_file}" | sed "s/.*='//" | sed "s/'//")
-    echo "root:$root_shadow" | /usr/sbin/chpasswd -e --root "${rootmnt}"
+    echo "root:$root_shadow" | /usr/sbin/chpasswd -e --root "${rootmnt:-/}"
 fi
 
 # This systemd env file is used by Triton systemd service files. It contains

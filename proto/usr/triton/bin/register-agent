@@ -29,7 +29,7 @@ function usage
     exit 1
 }
 
-if [[ $# -ne 2 ]]; then
+if ! (( $# == 2 )); then
     usage
 fi
 
@@ -51,7 +51,6 @@ if [[ $AGENT == "ur-agent" ]]; then
     exit 1
 fi
 
-if [[ ! -d $AGENT_DIR ]]; then
 # SAPI details
 if [[ -z "${CONFIG_sapi_domain}" ]]; then
     fatal '"sapi_domain" was not found in "node.config".'
@@ -61,7 +60,7 @@ SAPI_URL="http://${CONFIG_sapi_domain}"
 ETC_DIR="/opt/smartdc/agents/etc"
 
 CMD_UUID_V4="/usr/bin/uuid -v4"
-fi
+
 # ---- support functions
 
 #
@@ -77,6 +76,8 @@ function import_systemd_services
 
     for SERVICE_NAME in "${AGENT_DIR}"/systemd/*
     do
+        # Get basename only
+        SERVICE_NAME="${SERVICE_NAME##*/}"
         if [[ ${SERVICE_NAME} == *.service ]]; then
             cp "${AGENT_DIR}/systemd/${SERVICE_NAME}" "/usr/lib/systemd/system/${SERVICE_NAME}"
             systemctl enable "${SERVICE_NAME}"
