@@ -30,14 +30,16 @@ fi
 
 log_begin_msg "triton-agents"
 
-# triton_config_dir=$(getTritonConfigDir)
+# Simply calling this creates necessary directories
+# shellcheck disable=SC2034
+triton_config_dir=$(getTritonConfigDir)
 
 rootmnt_agent_node_dir="${rootmnt:-/}/opt/smartdc/agents/lib/node_modules"
 # usr_triton_agents_dir="/usr/triton/defaults/agents"
 
 # Copy (register) the agent systemd files to the systemd directory.
 if [ -d "${rootmnt_agent_node_dir}" ]; then
-    for unit in ${rootmnt_agent_node_dir}/*/systemd/*.service; do
+    for unit in "${rootmnt_agent_node_dir}"/*/systemd/*.service; do
         cp -p "$unit" "${rootmnt}/usr/lib/systemd/system/"
     done
 fi
