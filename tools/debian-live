@@ -653,7 +653,7 @@ function postinstall {
 		find /etc/ssh -name "ssh_host_*key*" -exec rm -f "{}" ";"
 		sed -i \
 		    -e "s,^#HostKey /etc/ssh/,HostKey /usr/triton/config/ssh/," \
-		    -e "s,^#\(PermitRootLogin prohibit-password\),\1," \
+		    -e "s,^#\(PermitRootLogin prohibit-password\),PermitRootLogin yes," \
 		    /etc/ssh/sshd_config
 
 		rm -f /*.old
@@ -1058,7 +1058,7 @@ scratch=$top/scratch
 mkdir -p "$scratch"
 repo=$(git rev-parse --show-toplevel)
 
-motd=$'
+motd_alt=$'
    __        .                   .
  _|  |_      | .-. .  . .-. :--. |-
 |_    _|     ;|   ||  |(.-\' |  | |
@@ -1066,7 +1066,8 @@ motd=$'
                    /  ;  Platform ('"$name"' '"$release"$')
                    `-\'   '"$docurl"'
 '
-motd_alt='
+
+motd=$'
             *--+--*--*
            /| /| /| /|    J O Y E N T
           / |/ |/ |/ |    #####  ####   #  #####  ###   #   # TM
@@ -1079,6 +1080,7 @@ motd_alt='
          *--*--+--*         build: '"$release"'
 
 '
+
 : "$motd_alt"
 
 commit=$(cd "$(dirname "$0")" && git rev-parse HEAD)
