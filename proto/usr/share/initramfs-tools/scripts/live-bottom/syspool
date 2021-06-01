@@ -18,8 +18,10 @@ if [ "$1" = "prereqs" ]; then
 	exit 0
 fi
 
-# shellcheck disable=1091
+# shellcheck disable=SC1091
 . /scripts/functions
+# shellcheck source=proto/usr/share/initramfs-tools/scripts/triton
+. /scripts/triton
 
 log_begin_msg "triton-syspool"
 
@@ -36,8 +38,19 @@ is_syspool()
 	return 1
 }
 
+# Set the hostid and load the zfs module even if noimport=true. We might
+# want to import the pool post-boot.
 sethostid
 modprobe zfs
+
+# Handle noimport
+if grep -q -w noimport=true /proc/cmdline ; then
+	log_success_mgs "Not importing zpools due to noimport on the kernel command line"
+	log_end_msg
+	exit 0
+fi
+
+# If noimport was not set, then we continue on.
 zpool import -aN
 
 syspool=
@@ -71,22 +84,7 @@ if [ -n "${destroy_zpools}" ]; then
 	else
 		log_failure_msg "zpool destroy failed with code $destroy_retval: $destroy_out"
 	fi
-	exit
-fi
-
-# XXX - TODO: We want to handle noimport here, but even if we export the pool
-# the builtin systemd zfs mounting stuff will re-import it later.
-if grep -q -w noimport=true /proc/cmdline ; then
-	for pool in $(zfs list -Ho name -d0); do
-		export_out=$(zpool export "$pool" 2>&1)
-		export_retval=$?
-		if [ $export_retval -gt 0 ]; then
-			log_failure_msg "zpool export failed with code $export_retval: $export_out"
-		else
-			log_success_msg "zpool exported"
-			log_success_msg "$(zpool list)"
-		fi
-	done
+	log_end_msg
 	exit 0
 fi
 
