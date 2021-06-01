@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/sh
 
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -23,7 +23,7 @@ fi
 
 # shellcheck disable=SC1091
 . /scripts/functions
-# shellcheck disable=SC1091
+# shellcheck source=proto/usr/share/initramfs-tools/scripts/triton
 . /scripts/triton
 
 log_begin_msg "triton-networking"

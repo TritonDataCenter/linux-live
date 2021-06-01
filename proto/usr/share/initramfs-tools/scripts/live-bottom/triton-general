@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/sh
 
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -23,7 +23,7 @@ fi
 
 # shellcheck disable=SC1091
 . /scripts/functions
-# shellcheck disable=SC1091
+# shellcheck source=proto/usr/share/initramfs-tools/scripts/triton
 . /scripts/triton
 
 # set -o xtrace
@@ -39,7 +39,7 @@ if [ -f "${node_config_file}" ]; then
 
     # Set the default root password.
     root_shadow=$(grep 'root_shadow=' "${node_config_file}" | sed "s/.*='//" | sed "s/'//")
-    echo "root:$root_shadow" | /usr/sbin/chpasswd -e --root "${rootmnt:-/}"
+    echo "root:$root_shadow" | /usr/sbin/chpasswd -e --root "${rootmnt}"
 fi
 
 # This systemd env file is used by Triton systemd service files. It contains
@@ -59,11 +59,15 @@ if [ ! -d "${rootmnt}/root/.ssh" ]; then
 fi
 
 # Set the imgadm config dir (so imgadm images/config will be persisted).
-mkdir -p "${triton_config_dir}/imgadm"
-ln -s "/usr/triton/config/imgadm" "${rootmnt}/var/imgadm"
+if [ ! -d "${rootmnt}/var/imgadm" ]; then
+    mkdir -p "${triton_config_dir}/imgadm" || true # don't care if exists
+    ln -s "/usr/triton/config/imgadm" "${rootmnt}/var/imgadm"
+fi
 
 # Add tool symlinks.
-ln -s "/opt/smartdc/agents/lib/node_modules/cn-agent/node_modules/vmadm/bin/vmadm" "${rootmnt}/usr/triton/bin/vmadm"
+if [ ! -f "${rootmnt}/usr/triton/bin/vmadm" ]; then
+    ln -s "/opt/smartdc/agents/lib/node_modules/cn-agent/node_modules/vmadm/bin/vmadm" "${rootmnt}/usr/triton/bin/vmadm"
+fi
 
 log_end_msg
 
