@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/sh
 
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -13,8 +13,36 @@
 # This script provides helper functions for setting up Triton.
 #
 
+################################################################################
+# Set up logging.
+# Don't change this unless you absolutely need to. Don't be fancy.
+# It's pretty fragile.
+# Doing the wrong thing here can result in the image being unbootable, or
+# all the scripts failing. Don't rely on anything. At this point in the boot
+# process you're only in the initrd image. Very little of what you expect is
+# available. As noted above, this runs in /bin/sh, which is *dash*. Don't use
+# bashisms. They will not work.
+################################################################################
+set -o xtrace
+
+TRACE_LOG=${rootmnt:=/}/var/log/triton/boot/$(basename "$0").log
+#TRACE_LOG=${rootmnt:=/}/$(basename "$0").log
+mkdir -p "$(dirname "$TRACE_LOG")"
+exec 1>>"${TRACE_LOG}"
+exec 2>>"${TRACE_LOG}"
+PS4=
+PS4="${PS4}"'['"$0"'] LINE:${LINENO}: '
+export PS4
+################################################################################
+# End extremely fragile portion
+################################################################################
+
+# Make sure we don't get tripped up on these being unset.
+: "${quiet:=false}"
+: "${rootmnt:=/}"
+
 # Setup the config dir.
-# 
+#
 # Before `sdc-server setup` there is no /opt directory, so we use an in memory
 # config dir under /usr/triton/config.
 # Once `sdc-server setup` completes, the temporary /usr/triton/config contents
@@ -22,18 +50,18 @@
 # is then used to the real persisted directory.
 # All triton tooling/software should use /usr/triton/config/, which should
 # always work regardless of persistence.
-function getTritonConfigDir() {
+getTritonConfigDir() {
     zconfig=$(zfs mount | grep '/opt' >/dev/null || echo "not found")
     triton_config_dir="${rootmnt}/opt/triton/config"
     usr_triton_config_dir="${rootmnt}/usr/triton/config"
 
-    if [ "${zconfig}" == "not found" -o ! -d "${triton_config_dir}" ]; then
+    if [ "${zconfig}" = "not found" ] || [ ! -d "${triton_config_dir}" ]; then
         # Create a temporary (in memory) /usr/triton/config dir.
         mkdir -p "${usr_triton_config_dir}"
         triton_config_dir="${usr_triton_config_dir}"
     else
         # Make a symlink for the /usr/triton/config dir.
-        if [ ! -h $usr_triton_config_dir -a ! -e $usr_triton_config_dir ]; then
+        if [ ! -h "$usr_triton_config_dir" ] && [ ! -e "$usr_triton_config_dir" ]; then
             ln -s "/opt/triton/config" "${usr_triton_config_dir}"
         fi
     fi
