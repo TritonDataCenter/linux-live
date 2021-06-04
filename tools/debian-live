@@ -61,6 +61,8 @@ packages+=(dmidecode python3)
 # Additional packages for a useful system.
 packages+=(
     bc
+    bpftrace
+    bpfcc-tools
     ca-certificates
     curl
     dnsutils
@@ -70,6 +72,8 @@ packages+=(
     iputils-ping
     jq
     less
+    lldpd
+    lshw
     lsof
     man
     netcat-openbsd
