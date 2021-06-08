@@ -20,7 +20,7 @@ The platform image is based on Debian utilizing ZFS on Linux.
 ### TLDR
 
 1. Install [Debian 10 64-bit](https://www.debian.org/CD/http-ftp/) on a machine
-    (e.g. in VMware)
+   (e.g. in VMware)
 2. Install [ZFS](#install-zfs)
 3. Create a zpool (warning - this will destroy the disk partition), e.g.
 
@@ -39,7 +39,7 @@ The platform image is based on Debian utilizing ZFS on Linux.
    image builder:
 
     ```bash
-    git clone -b linuxcn https://github.com/joyent/linux-live
+    git clone https://github.com/joyent/linux-live
     cd linux-live
     ./tools/debian-live
     ```
@@ -86,13 +86,19 @@ can be mounted over them.  For instance, persistent network configuration is
 stored as drop-in files in `/etc/systemd/network`, which is mounted from
 `<system pool>/platform/etc/systemd/network`.
 
+Several conventions from SmartOS have been carried forward to Linux. This
+includes, but is not limited to:
+
+* noimport=true boot parameter will skip importing pools
+* destroy_zpools=true will destroy the system pool at boot
+* marking zones/var for factory reset will destroy the system pool at boot
+* sdc-factoryreset will mark zones/var for reset
+* `/opt/custom`. This includes `/opt/custom/systemd` for custom unit files
+
 ## Image Distribution
 
-XXX This is aspirational as of 2020-02-10.
-
-## Booter Integration
-
-XXX This is aspirational as of 2020-02-10.
+Initially images will be available via Manta. At a later time, these will be
+distributed via updates.joyent.com.
 
 ### Platform Image Import
 
@@ -121,10 +127,6 @@ platform/x86_64/build.tgz.manifest
 The existing `sdcadm platform` command will be enhanced to support Linux
 platform images.
 
-When a Linux PI is imported, (`sdcadm platform`? `booter`?)  will notify the
-zfsbuilder service of its existence.  The zfsbuilder service will build the ZFS
-bits, as described above.
-
 ### iPXE configuration
 
 When a Linux CN is configured in booter, the following files will be configured
@@ -140,27 +142,22 @@ under `/tftboot`:
 #!ipxe
 kernel /os/20200401T0123456Z/platform/x86_64/vmlinuz console=ttyS0 boot=live fetch=http:///os/20200401T0123456Z/platform/x86_64/filesystem.squashfs
 initrd /os/20200401T0123456Z/platform/x86_64/initrd
-module --name /packages.tar /zfs/20200401T0123456Z/packages.tar
-module --name /networking.json /bootfs/<MAC>/networking.json
+module http://<asset_server>/<path>/node.config /etc/node.config
+module http://<booter>/bootfs/<MAC>/networking.json /etc/triton-networking.json
+module http://<booter>/bootfs/<MAC>/networking.json.hash /etc/triton-networking.json.hash
 boot
 ```
 
-In this example, it is anticipated that `http://<booter-ip>/zfs` is proxied
-to the appropriate URL on the zfsbuild instance.  This configuration requires
-that booter is configured to serve files via HTTP, not TFTP.
-
-**XXX for initial prototyping, ZFS bits will be in `filesystem.squashfs` and
-perhaps `initrd`.  `packages.tar` will not be available and if `networking.json`
-is present it can be ignored.**
+This configuration requires that booter is configured to serve files via HTTP,
+not TFTP.
 
 ### ISC DHCP server configuration
 
-As a stand-in until booter is ready, ISC DHCP server can be used on a network
-that doesn't already have another DHCP server.  The following configuration will
-serve up dynamic addresses on the 192.168.42.0/24 network, assuming that the
-server it is running on has an interface with address 192.168.42.1 and is
-running a web server, such as is described in the nginx configuration that
-follows this section.
+As a stand-in, ISC DHCP server can be used on a network that doesn't already
+have another DHCP server.  The following configuration will serve up dynamic
+addresses on the 192.168.42.0/24 network, assuming that the server it is running
+on has an interface with address 192.168.42.1 and is running a web server, such
+as is described in the nginx configuration that follows this section.
 
 ```bash
 apt install -y isc-dhcp-server
@@ -263,34 +260,35 @@ The boot of a Linux CN via iPXE uses the following general procedure:
    kernel.
 2. ipxe downloads `/os/<platform-timestamp>/platform/x86_64/initrd.img` as the
    initial ramdisk.
-3. ipxe downloads `/zfs/<platform-timestamp>/packages` as `/packages.tar`.
-4. ipxe downloads `/bootfs/<MAC>/network.json` as `/networking.json`
-5. The kernel starts, loads `initrd.img` into a initramfs and mounts at `/`.
+3. ipxe downloads `/bootfs/<MAC>/network.json` as `/networking.json`
+4. The kernel starts, loads `initrd.img` into a initramfs and mounts at `/`.
    `/networking.json` and `/packages.tar` are visible.
-6. The live-boot scripts download `filesystem.squashfs` and creates the required
+5. The live-boot scripts download `filesystem.squashfs` and creates the required
    overlay mounts to make it writable.
-7. The ZFS packages are installed in the soon-to-be root file system, the ZFS
-   kernel modules are loaded, and any existing pool is imported and ZFS file
-   systems critical to early boot are mounted.
-8. `/networking.json` is moved to a location that will be accessible in the new
+6. `/networking.json` is moved to a location that will be accessible in the new
    root.  This is at a path that a systemd generator will find it to generate
    the appropriate networking configuration under `/run/systemd`.
-9. live-boot pivots root and transfers control to systemd.
+7. live-boot pivots root and transfers control to systemd.
 
 ### Boot of a new CN
 
 A new CN will boot the default image, which may be a SmartOS or a Linux image.
-`sdc-server setup` may specify which image the server is to run.  If the wrong
+The server may need to be explicitly assigned a linux platform image via
+`sdcadm platform assign` and rebooted to the desired operating system before
+proceeding with `sdc-server setup`.
+
+<!-- If the wrong
 OS is booted, booter will be updated to cause the next boot to boot from the
 appropriate OS and trigger a reboot.  On this subsequent boot, the CN will be
-set up.
+set up. -->
 
 ## Platform Image creation
 
-In general, the image creation process is:
+As stated earlier in this document, in general the image creation process is
+roughly:
 
 ```bash
-git clone -b linuxcn https://github.com/joyent/linux-live
+git clone https://github.com/joyent/linux-live
 cd linux-live
 sudo tools/debian-live
 ```
@@ -321,14 +319,6 @@ image.  The procedure is as follows.
 Debian uses `dash` as the Bourne shell.  It is less featureful than `bash`,
 which causes problems for some Joyent Makefiles.  To work around this:
 
-XXX-linuxcn: remove this advice once more cleanup happens
-
-```bash
-dpkg-reconfigure dash
-```
-
-Follow the prompts to tell it that `/bin/sh` should be `bash`, not `dash`.
-
 Over time, each problematic `Makefile` should be changed to include:
 
 ```bash
@@ -341,8 +331,8 @@ Note that `/bin/bash` works across various Linux distros and SmartOS.
 ##### Install ZFS
 
 See <https://wiki.debian.org/ZFS#Installation> or some other "Getting Started"
-link found at <https://zfsonlinux.org/>.  For licensing reasons, the installation
-will need to build ZFS, which will take several minutes.
+link found at <https://zfsonlinux.org/>.  For licensing reasons, the
+installation will need to build ZFS, which will take several minutes.
 
 ### First boot build machine setup
 
@@ -354,14 +344,14 @@ For now, the image creation script assumes that there is a pool named `triton`
 where it can create images.
 
 ```bash
-sudo zpool create triton /dev/vdb
+sudo zpool create data /dev/vdb
 ```
 
 If you will be developing and testing agents on this box, you probably want to
 tell them that your pool is the system pool.
 
 ```bash
-sudo touch /triton/.system_pool
+sudo touch /data/.system_pool
 ```
 
 #### Install other dependencies
@@ -374,7 +364,7 @@ Run the preflight check to see what other things you need.  If it tells you to
 install other packages, do the needful.
 
 ```bash
-$ git clone -b linuxcn https://github.com/joyent/linux-live
+$ git clone https://github.com/joyent/linux-live
 $ cd linux-live
 $ ./tools/debian-live preflight_check
 $ echo $?
@@ -464,7 +454,7 @@ $ sudo tools/debian-live -r 20200105T222739Z install_proto
 ```
 
 To inspect the outcome of that, you can `chroot
-/triton/debian-live/20200105T222739Z/chroot` and poke around.  More commonly you
+/data/debian-live/<platform_stamp>/chroot` and poke around.  More commonly you
 will want to run `install_proto` and all steps after it.  You can use `...` for
 that.
 

@@ -21,11 +21,13 @@ leap of faith with me.
 ## systemd documentation
 
 The documentation set for systemd is surprisingly good.  Online versions of the
-man pages are at
-[freedesktop.org](https://www.freedesktop.org/software/systemd/man/index.html).
-Notice that the commands (sections 1 and 8) tend to be `systemd` **dash**
-`something` and files (section 5) tend to be described in `systemd` **dot**
-`something`.
+man pages are at [freedesktop.org][fd-sysd-doc]).
+
+Notice that the commands (sections 1 and 8) tend to be `systemd-something` (a
+**dash**) and files (section 5) tend to be described in `systemd.something`
+(a **dot**).
+
+[fd-sysd-doc]: https://www.freedesktop.org/software/systemd/man/index.html
 
 * [systemd(1)](https://www.freedesktop.org/software/systemd/man/systemd.html)
 * [systemctl(1)](https://www.freedesktop.org/software/systemd/man/systemctl.html#)
@@ -86,6 +88,8 @@ Where the service directories are:
    Triton agent.  This implies that as services and platform images evolve, the
    future versions of Triton agents need to know how to migrate any
    configuration between arbitrary configuration versions.
+5. End users can add systemd unit files to `/opt/custom/systmed` which will be
+   automatically enabled and started by systemd.
 
 ### Example: Fixing a broken service
 
@@ -253,12 +257,3 @@ done with `X-` prefixes.
 X-NICTag=external
 X-Customer=00000000-0000-0000-0000-000000000000
 ```
-
-### Machines with nspawn
-
-The `systemd-nspawn@.service` service will be used for starting and managing
-machines.
-
-More details are in [RFD 180][rfd180].
-
-[rfd180]: https://github.com/joyent/rfd/blob/master/rfd/0180/README.md

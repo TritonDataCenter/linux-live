@@ -5,16 +5,17 @@
 -->
 
 <!--
-    Copyright 2020 Joyent, Inc
+    Copyright 2021 Joyent, Inc
 -->
 
 # Introduction
 
-This repository contains the bits needed for construction of a Linux platform
+This repository contains the tools needed for construction of a Linux platform
 image (PI) for Triton Compute.  Triton has historically supported SmartOS for
 compute nodes (CNs) and head nodes (HNs).  The construction of SmartOS-based
-platform images is handled by
-[smartos-live](https://github.com/joyent/smartos-live).
+platform images is handled by [smartos-live][smartos-live].
+
+[smartos-live]: https://github.com/joyent/smartos-live
 
 ## Stateless platform images with local storage
 
@@ -31,15 +32,15 @@ different directories.  All of this state is maintained in a ZFS pool.
 Over the years, Linux has grown many native features that resemble those that
 are used in SmartOS.  A quick mapping is as follows:
 
-| SmartOS                  | Linux                 | Notes                                    |
-|--------------------------|-----------------------|------------------------------------------|
-| SMF                      | systemd               | systemd has taken over more of the world than SMF has in SmartOS. |
-| ZFS                      | ZFS                   | Due to licensing constraints, ZFS is distributed only as source code |
-| `vmadm action`           | `vmadm action`        | Some actions on Linux will be unsupported |
-| `imgadm action`          | `imgadm action`       | Some actions on Linux will be unsupported |
-| zoneadmd                 | lxc                   | Linux container service |
-| `zoneadm -z $i boot`     | `lxc start triton-$i` | Instance actions are performed through lxc/lxd |
-| `zoneadm -z $i shutdown` | `lxc stop triton-$i`  | Same |
+| SmartOS                  | Linux                 | Notes                                                                |
+|--------------------------|-----------------------|----------------------------------------------------------------------|
+| SMF                      | systemd               | systemd is the de-facto standard system service runtime on Linux     |
+| ZFS                      | ZFS                   | We will follow Ubuntu's lead in shipping ZFS                         |
+| `vmadm action`           | `vmadm action`        | Some actions on Linux will be unsupported                            |
+| `imgadm action`          | `imgadm action`       | Some actions on Linux will be unsupported                            |
+| zoneadmd                 | lxc/lxc               | Linux container service                                              |
+| `zoneadm -z $i boot`     | `lxc start triton-$i` | Instance actions are performed through lxc/lxd                       |
+| `zoneadm -z $i shutdown` | `lxc stop triton-$i`  | Same                                                                 |
 | `zlogin $i`              | `lxc console triton-$i` or `lxc exec triton-$i` | |
 
 Of course, these will all be wrapped in Triton APIs and familiar CLIs that call
@@ -60,6 +61,8 @@ running Linux containers only.  Specifically excluded are:
 * Head Nodes
 * HVM instances, including transparent container wrapping ala Kata Containers or
   Firecracker.
+* Docker or OCI images. Eventually we'd like sdc-docker to deploy OCI images to
+  Linux CNs.
 
 As much as possible, Linux compute nodes will run the same agents that are run
 on SmartOS.  The agents are delivered from the same repositories with the same
@@ -76,3 +79,20 @@ compute node.
 * [Platform Images](2-platform-image.md)
 * [Systemd Integration](3-systemd-integration.md)
 * [ZFS](4-zfs.md)
+
+## Bugs
+
+Linux CN is currently in "technology preview" state. There *will* be things
+that don't work right.
+
+Before filing bugs, make sure to update all components to the latest dev
+channel, replicate the issue on the latest Linux PI, and check the
+[github issues][gh-issues] to see if it has already been filed.
+
+During the development cycle in these early phases it's common for multiple
+platform images to be released per day.
+
+If you run into an issue that is unreported, please do file it! You can also
+drop by IRC in `#triton` on `irc.libera.chat` to discuss it with us.
+
+[gh-issues]: https://github.com/joyent/linux-live/issues
