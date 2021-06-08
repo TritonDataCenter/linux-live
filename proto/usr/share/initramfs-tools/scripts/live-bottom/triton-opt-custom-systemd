@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+
+#
+# Copyright 2021 Joyent, Inc.
+#
+
+#
+# This script is responsible for setting up unit files in /opt/custom/systemd.
+#
+
+PREREQ="syspool"
+
+# Pre-script requirements.
+if [ "$1" = "prereqs" ]; then
+	echo "${PREREQ}"
+	exit 0
+fi
+
+# shellcheck disable=SC1091
+. /scripts/functions
+# shellcheck source=proto/usr/share/initramfs-tools/scripts/triton
+. /scripts/triton
+
+log_begin_msg "triton-opt-custom-systemd"
+
+cd "${rootmnt}/etc/systemd/system" || exit 1
+
+find ${rootmnt}/opt/custom/systemd | while read -r file; do
+	unit=$(basename "$file")
+	ln -s "/opt/custom/systemd/${unit}" "${rootmnt}/etc/systemd/system/${unit}"
+	ln -s "/opt/custom/systemd/${unit}" "${rootmnt}//etc/systemd/system/multi-user.target.wants/${unit}"
+done
+
+log_end_msg
+
+exit 0
