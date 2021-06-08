@@ -32,7 +32,15 @@ names may be:
 * triton: Unlikely to be in use by anything else and is perfect until the next
   rebranding.
 
-For now the default pool name shall be `triton`.
+However, consistency with SmartOS can still be highly beneficial. E.g., being
+able to run:
+
+```bash
+sdc-oneachnode -c 'zfs get compression zones'
+```
+
+allows operators to not have to distinguish which system type each CN is.
+For this reason the default pool name shall remain `zones`.
 
 ### Mounts over root fs directories
 
@@ -53,62 +61,9 @@ zfs create -o mountpoint=/opt zones/opt
 zfs create -o mountpoint=/var/lib/lxd zones/lxd
 ```
 
-### Alternative mounting
-
-An alternative plan is to create a hierarchy under `zones/system` such
-that file systems under that are automatically mounted over directories in the
-root file system.
-
-```bash
-zfs create -o canmount=noauto -o mountpoint=/ zones/system
-```
-
-Now, datasets under that dataset automatically get the right mountpoint.  For
-example, this will create the file system that gets mounted at `/opt`.
-
-```bash
-zfs create zones/system/opt
-```
-
-When needing to create a spot in the directory hierarchy that shouldn't get
-mounted over the root file system, just set `canmount=noauto`.
-
-```bash
-# Create the root
-zfs create -o canmount=noauto -o mountpoint=/ zones/system
-
-# Create intermediate points that will not be mounted using noauto
-zfs create -o canmount=noauto zones/system/etc
-zfs create -o canmount=noauto zones/system/etc/systemd
-# Now create the actual mount point for "/etc/systemd/network"
-zfs create zones/system/etc/systemd/network
-
-# Other examples:
-zfs create -o canmount=noauto zones/system/var
-zfs create zones/system/var/imgadm
-zfs create zones/system/var/ssh
-```
-
-### Other possible mountpoints
-
-| Mountpoint           | ZFS Filesystem              | Notes                |
-|----------------------|-----------------------------|----------------------|
-| /etc/systemd/network | zones/system/etc/systemd/network | [systemd.network](https://systemd.network/systemd.network.html) |
-| /etc/sysusers.d      | zones/system/etc/sysusers.d | [systemd.sysusers.d](https://www.freedesktop.org/software/systemd/man/sysusers.d.html) |
-| /home                | zones/system/home           | Useful for developers home dirs, maybe useful for customers requiring non-root system users. Use in conjunction with `/etc/sysusers.d`. |
-| /opt                 | zones/system/opt            | Likely location of installed agents. |
-| /root                | zones/system/root           | Persistent root dir helpful for `authorized_keys` and such. |
-| /var/imgadm          | zones/system/var/imgadm     | Image manifests and such. |
-| /var/ssh             | zones/system/var/ssh        | System SSH keys |
-
 ## Boot integration
 
-debian-live images boot only from ISO or USB.  Work has not yet begun on making
-it boot from iPXE or other mechanisms suggested by [RFD
-176](https://github.com/joyent/rfd/blob/master/rfd/0176/README.md).  Notably,
-this will require additional work to make it so that `filesystem.squashfs` is
-obtained automatically from a separate file or it or its content is included in
-`initrd`.
+debian-live images boot only from PXE, ISO, or USB.
 
 When the tools in this repository are used to build a debian-live image, the
 non-dkms version of ZFS is installed in `live/filesystem.squashfs` root file
@@ -119,7 +74,7 @@ that exist in the system zpool, there are *hook scripts* and *boot scripts*, as
 described in `initramfs-tools(7)`, that ensure that the persistent data stored
 in ZFS is mounted before systemd starts.  In particular:
 
-* [sethostid](../src/sethostid) is run to set the hostid to a hash of the
+* [sethostid](../src/sethostid.rs) is run to set the hostid to a hash of the
   system's UUID.  This is the same system UUID that is used by Triton.
 * The [triton](../proto/usr/share/initramfs-tools/hooks/triton) *hook script*
   ensures that `sethostid`, `dmidecode`, and any libraries they require are in
