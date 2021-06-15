@@ -167,3 +167,15 @@ triton create -w 71b94f10 sample-256M -N sdc_nat
 Creating instance 95157ccb (95157ccb-9f04-4ede-894c-f9e995e3fae3, alpine_3.12_amd64_default@20201204_13_00)
 Created instance 95157ccb (95157ccb-9f04-4ede-894c-f9e995e3fae3) in 5s
 ```
+
+## Using AdminUI
+
+AdminUI hasn't yet had any updates explicitly dealing with Linux CNs or LXD
+images. Some things work (e.g., server platform assignment), while others
+(e.g., importing lxd images) are known to not work. Other things may or may
+not work and much of it hasn't been tested yet.
+
+Because of this, AdminUI isn't currently a supported method of managing Linux
+CNs. This is expected to change, but we really need to get the lower level
+interfaces formalized first, and so there's no estimated time frame for when
+this might happen yet.

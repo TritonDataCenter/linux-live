@@ -18,7 +18,7 @@
 [Unit]
 Description=Triton install-lxd service
 Documentation=https://linuxcontainers.org/lxd/docs/master/index
-After=network.target zfs.target triton-fs.service
+After=network.target zfs.target
 Before=triton-lxd.service
 
 [Service]
