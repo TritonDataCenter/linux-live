@@ -98,7 +98,7 @@ important.
 This is likely to be a significant amount of work, potentially adding a new
 namespace for ZFS.
 
-### ZFS security
+### ZFS device node security
 
 We need to be sure that container users are not able to muck with ZFS or see
 datasets not mounted in the container or delegated to it.  It may be that we
