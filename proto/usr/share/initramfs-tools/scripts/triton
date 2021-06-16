@@ -26,7 +26,6 @@
 set -o xtrace
 
 TRACE_LOG=${rootmnt:=/}/var/log/triton/boot/$(basename "$0").log
-#TRACE_LOG=${rootmnt:=/}/$(basename "$0").log
 mkdir -p "$(dirname "$TRACE_LOG")"
 exec 1>>"${TRACE_LOG}"
 exec 2>>"${TRACE_LOG}"
@@ -46,8 +45,8 @@ export PS4
 # Before `sdc-server setup` there is no /opt directory, so we use an in memory
 # config dir under /usr/triton/config.
 # Once `sdc-server setup` completes, the temporary /usr/triton/config contents
-# will be copied to the persisted /opt/triton/config directory, and a symlink
-# is then used to the real persisted directory.
+# will be copied to the persisted /opt/triton/config directory on the zpool,
+# and a symlink is then used to the real persisted directory.
 # All triton tooling/software should use /usr/triton/config/, which should
 # always work regardless of persistence.
 getTritonConfigDir() {

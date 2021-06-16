@@ -15,6 +15,11 @@
 Description=Linux Containers Service
 Documentation=https://linuxcontainers.org/lxd/docs/master/index
 After=triton-install-lxd.service
+Before=var-lib-lxd-devlxd.mount
+Before=var-lib-lxd-shmounts.mount
+Before=var-lib-lxd.mount
+Before=lxc-net.service
+Before=lxc.service
 
 [Service]
 Environment=PATH="/usr/node/bin:/usr/triton/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/lxd/bin"
