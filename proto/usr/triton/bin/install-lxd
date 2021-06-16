@@ -50,8 +50,7 @@ fi
 # Mountpoint will probably be "none", which is expected due to the way
 # lxc handles zfs datasets. We only need to create the dataset if we
 # get an error running the command.
-POOLCREATED=$(zfs list -H -o mountpoint zones/lxdpool)
-if [ $? != 0 ]; then
+if ! zfs list -H -o mountpoint zones/lxdpool ; then
     /usr/sbin/zfs create -o mountpoint=/zones/lxdpool zones/lxdpool
     /usr/local/lxd/bin/lxc storage create lxdpool zfs source=zones/lxdpool
 
