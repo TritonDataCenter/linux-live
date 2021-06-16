@@ -277,10 +277,24 @@ The server may need to be explicitly assigned a linux platform image via
 `sdcadm platform assign` and rebooted to the desired operating system before
 proceeding with `sdc-server setup`.
 
-<!-- If the wrong
-OS is booted, booter will be updated to cause the next boot to boot from the
-appropriate OS and trigger a reboot.  On this subsequent boot, the CN will be
-set up. -->
+<!--
+
+---- Comment within a comment
+Removing this paragraph for now. it's a great idea, and we'd like to in the
+future, but currently triton doesn't even remotely do this. Hopefully someday,
+dear comment snoopers!
+
+This could conceivably be done by adding a PI parameter to server setup jobs and
+a "wait for server to be the correct system_type" step in the workflow. If it's
+already the right system_type it'll just continue. If not, it would assign the
+platform, reboot and wait.
+----
+
+If the wrong OS is booted, booter will be updated to cause the next boot to boot
+from the appropriate OS and trigger a reboot.  On this subsequent boot, the CN
+will be set up.
+
+-->
 
 ## Platform Image creation
 

@@ -25,7 +25,7 @@ systemctl daemon-reload
 #
 # Ideally, we would use the `-w` option to `udevadm trigger`.  That can hang
 # forever when a link is renamed, presumably because it is waiting for an event
-# that includes the old name.  Instead, we fire off the first commadn then wait
+# that includes the old name.  Instead, we fire off the first command then wait
 # for all events - even those unrelated to the trigger - to finish.  This isn't
 # realy a big deal, I think.
 #
