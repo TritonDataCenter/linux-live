@@ -44,9 +44,12 @@ debver=buster
 name="Debian 10"
 docurl=https://github.com/joyent/linux-live
 
-kernel_version=5.10.0-0.bpo.5
-zfs_ver=2.0.3
+golang_ver=1.15.6
 rust_version=1.5.2
+
+kernel_version=5.10.0-0.bpo.5
+lxd_ver=4.0.4
+zfs_ver=2.0.3
 
 # From https://willhaley.com/blog/custom-debian-live-environment/
 packages=(live-boot systemd-sysv)
@@ -591,20 +594,21 @@ function install_proto {
 }
 
 function install_lxd {
-	curl -L https://golang.org/dl/go1.15.6.linux-amd64.tar.gz |
+	curl -L https://golang.org/dl/go${golang_ver}.linux-amd64.tar.gz |
 	    chroot "$root" tar -C /usr/local --no-same-owner -xzf -
-	LXD_RELEASE=lxd-4.0.4
+	LXD_RELEASE=lxd-$lxd_ver
 	curl -L https://github.com/lxc/lxd/releases/download/$LXD_RELEASE/$LXD_RELEASE.tar.gz |
 	    chroot "$root" tar -C /tmp --no-same-owner -xzf -
 	# shellcheck disable=2016
-	chroot "$root" bash -c '
+	chroot "$root" env lxd_ver=$lxd_ver bash -c '
 	    PS4="BUILD_LXD: "
 	    set -xeuo pipefail
 
 	    export DEBIAN_FRONTEND=noninteractive
 	    export LC_ALL=C
-	    export LXD_RELEASE=/tmp/lxd-4.0.4
+	    export LXD_RELEASE=/tmp/lxd-$lxd_ver
 	    export PATH=$PATH:/usr/local/go/bin
+
 	    cd $LXD_RELEASE
 	    export GOPATH=$(pwd)/_dist
 	    mkdir -p $GOPATH/bin
