@@ -288,9 +288,10 @@ function install_temporary_packages {
 	    "${apt_args[@]}" "${temp_build_packages[@]}"
 }
 
-# XXX This needs to be reworked so that the ZFS binaries are not part of the
-# squashfs or initrd files.  They can be built, but the artifacts should be
-# stored in a way that they can be excluded from distributed images.
+# Build ZFS. Ideally this (and other build steps in this script, e.g. lxd) would
+# be done separately and packages generated that we install via apt like
+# everything else. Once we have Linux as a platform it should be easier to run
+# things like a build farm and repo.
 function build_zfs {
 	# shellcheck disable=1004 disable=2016
 	chroot "$root" env zfs_ver=$zfs_ver bash -c '
@@ -593,6 +594,8 @@ function install_proto {
 
 }
 
+# Build and install LXC/LXD. Like ZFS, eventually this should be done
+# separtely and artifacts dropped into a repo so that we can install vi apt.
 function install_lxd {
 	curl -L https://golang.org/dl/go${golang_ver}.linux-amd64.tar.gz |
 	    chroot "$root" tar -C /usr/local --no-same-owner -xzf -
