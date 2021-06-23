@@ -25,10 +25,25 @@
 ################################################################################
 set -o xtrace
 
-TRACE_LOG=${rootmnt:=/}/var/log/triton/boot/$(basename "$0").log
+# All of our live-bottom scripts will log to an ephemeral location on the
+# filesystem. Unfortunately, to have a log history we need persistent storage
+# which means the zpool, but we also need to log bringing up the zpool.
+# If we log to a location on the zpool we can't open the log on the pool before
+# it's mounted. Going through a bunch of extra hoops to make the pool import
+# log to a different location and then move the log to the pool afterward
+# will unnecessarily complicate things. So if we want a log of mounting the pool
+# the log destination can't be either on the pool or somewhere that will be
+# clobbered by mounting the pool.
+# Having the most recent log always available is infinitely more valuable than
+# never having the pool log.
+TRACE_LOG=${rootmnt:=/}/usr/triton/log/boot/$(basename "$0").log
 mkdir -p "$(dirname "$TRACE_LOG")"
 exec 1>>"${TRACE_LOG}"
 exec 2>>"${TRACE_LOG}"
+# I'd like to have the date/time stamp in here, but dash doesn't suppor it
+# natively, and my attempt at putting a command in the prompt didn't work
+# initially. Maybe this can be revisted later. Note the fragility as described
+# above.
 PS4=
 PS4="${PS4}"'['"$0"'] LINE:${LINENO}: '
 export PS4
