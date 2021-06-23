@@ -90,15 +90,24 @@ fi
 
 # Mount all available zfs filesystems in the system zpool.
 if [ -n "$syspool" ]; then
-	(zfs list -Ho canmount,name,mountpoint -p -r "$syspool" || true) | \
+	# Ok, what are we doing here? I'm glad you asked.
+	# First of all, lxc will manage the storage pool on its own, so just
+	# skip it.
+	# Second, zones/lxd is listed before zones/var, so we need to sort
+	# by the mountpoint to ensure that /var gets mounted before
+	# /var/lib/lxd.
+	# And finally we force this to evaluate with a success exit code
+	# so the script doesn't abort if there's no pool It doesn't *really*
+	# matter because this is the end of the script, but we want to ensure
+	# that log_end_msg gets emitted.
+	(zfs list -Ho canmount,name,mountpoint -p -r "$syspool" | \
+		grep -v lxdpool | sort -k 3 || true) | \
 	while IFS="$(printf '\t')" read -r canmount name mountpoint; do
 		[ "$canmount" = on ] || continue
 		# shellcheck disable=2154
 		mp="$rootmnt/$mountpoint"
 		mkdir -p "$mp"
-		#echo "Triton mounting zfs dataset $name on $mp"
-		# XXX - TODO: This improperly mounts legacy.
-		# E.g., zones/var gets mounted on /legacy.
+		echo "Triton mounting zfs dataset $name on $mp"
 		mount -o zfsutil -t zfs "$name" "$mp"
 	done
 fi
