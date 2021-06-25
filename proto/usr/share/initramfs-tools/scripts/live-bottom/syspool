@@ -140,7 +140,7 @@ if [ -n "$syspool" ]; then
 		fi
 		# legacy means it will get mounted from /etc/fstab
 		# none means it should not be mounted
-		# Sip those as well
+		# Skip those as well
 		if [ "$mountpoint" = "legacy" ] || [ "$mountpoint" = "none" ]; then
 			continue
 		fi
