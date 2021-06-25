@@ -43,6 +43,37 @@ is_syspool()
 sethostid
 modprobe zfs
 
+# Apparently with an initrd, sleep before pool import is just a normal thing
+# in the Linux world.
+# See /usr/share/initramfs-tools/scripts/zfs, specifically the
+# load_module_initrd() function and the behavior of the
+# ZFS_INITRD_PRE_MOUNTROOT_SLEEP and ZFS_INITRD_POST_MODPROBE_SLEEP variables.
+#
+# Some hardware consistently hasn't yet enumerated devices by the time we go
+# about importing the pool. Normally you'd figure out if this applies to you
+# and set these options in /etc/defaults/zfs. Because the only persistent
+# storate we have is on the zpool, we can't do that. Unfortunately, we have to
+# subject everybody to this. We can't even check to see if the devices are
+# present because maybe some but not all are. Maybe all devices for a
+# non-system pool are present, but none for the system pool are present.
+# We just can't know if it's ready for us.
+#
+# Here, we're going to check the value in /etc/defaults/zfs (which is on the
+# platform image, and we don't set by default so the value shouldn't be present)
+# then allow that value to be overriden by the kernel command line. This is a
+# deviation from the standard ZoL behavior, but it will allow Triton users to
+# override this value via cnapi for problematic hardware. Finally, if it's not
+# present in either /etc/defaults/zfs or /proc/cmdline we'll fall back to a
+# value that in our experience seems to work for most cases.
+if grep -q -w ZFS_INITRD_POST_MODPROBE_SLEEP /etc/defaults/zfs; then
+	# shellcheck disable=SC1091
+	. /etc/defaults/zfs
+	#shellcheck disable=SC2154
+	zfs_modprobe_sleep=$ZFS_INITRD_POST_MODPROBE_SLEEP
+fi
+eval "$(tr ' ' '\n' < /proc/cmdline | grep -q -w zfs_modprobe_sleep)"
+sleep "${zfs_modprobe_sleep:=10}"
+
 # Handle noimport
 if grep -q -w noimport=true /proc/cmdline ; then
 	log_success_mgs "Not importing zpools due to noimport on the kernel command line"
@@ -103,9 +134,20 @@ if [ -n "$syspool" ]; then
 	(zfs list -Ho canmount,name,mountpoint -p -r "$syspool" | \
 		grep -v lxdpool | sort -k 3 || true) | \
 	while IFS="$(printf '\t')" read -r canmount name mountpoint; do
-		[ "$canmount" = on ] || continue
-		# shellcheck disable=2154
+		# Skip datasets not marked mountable
+		if [ "$canmount" = on ]; then
+			continue
+		fi
+		# legacy means it will get mounted from /etc/fstab
+		# none means it should not be mounted
+		# Sip those as well
+		if [ "$mountpoint" = "legacy" ] || [ "$mountpoint" = "none" ]; then
+			continue
+		fi
 		mp="$rootmnt/$mountpoint"
+		# Normally this is unnecessary, but with non-persistent root
+		# on a ramdisk the mountpoint may be set to a directory that
+		# did exist at one time but isn't part of the platform iamge.
 		mkdir -p "$mp"
 		echo "Triton mounting zfs dataset $name on $mp"
 		mount -o zfsutil -t zfs "$name" "$mp"
