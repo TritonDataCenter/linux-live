@@ -278,6 +278,8 @@ function install_kernel_packages {
 
 # Install system packages.
 function install_packages {
+	chroot "$root" env DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade \
+	    "${apt_args[@]}"
 	chroot "$root" env DEBIAN_FRONTEND=noninteractive apt install \
 	    "${apt_args[@]}" "${packages[@]}"
 }
