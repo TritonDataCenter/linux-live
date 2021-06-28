@@ -132,7 +132,7 @@ platform images.
 When a Linux CN is configured in booter, the following files will be configured
 under `/tftboot`:
 
-* `menu.lst.01<MAC>`: XXX grub configuration, for a reason I don't understand.
+* `menu.lst.01<MAC>`: grub configuration
 * `boot.ipxe.01<MAC>`: ipxe configuration
 * `bootfs/<MAC>/networking.json`: same as SmartOS
 
