@@ -52,7 +52,7 @@ modprobe zfs
 # Some hardware consistently hasn't yet enumerated devices by the time we go
 # about importing the pool. Normally you'd figure out if this applies to you
 # and set these options in /etc/defaults/zfs. Because the only persistent
-# storate we have is on the zpool, we can't do that. Unfortunately, we have to
+# storage we have is on the zpool, we can't do that. Unfortunately, we have to
 # subject everybody to this. We can't even check to see if the devices are
 # present because maybe some but not all are. Maybe all devices for a
 # non-system pool are present, but none for the system pool are present.

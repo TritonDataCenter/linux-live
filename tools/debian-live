@@ -15,12 +15,6 @@
 # ZFS.  Thanks to https://willhaley.com/blog/custom-debian-live-environment/ for
 # making this problem easily approachable.
 #
-# WARNING:   This script generates an image that taints the kernel with CDDL
-#	     licensed ZFS modules.  Many believe that distribution of the binary
-#	     ZFS modules infringe on the GPLv2 licensed Linux code.
-#	     Distribution of images generated with this script is highly
-#	     discouraged.
-#
 
 export PATH=/bin:/usr/bin:/usr/sbin
 
