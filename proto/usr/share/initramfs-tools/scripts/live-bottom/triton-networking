@@ -78,7 +78,7 @@ if [ "${hostname}" != "" ]; then
     echo "${hostname}" > "${rootmnt:-/}/etc/hostname"
 else
     # Set the hostname to be derived from the admin mac
-    admin_mac=$(jq -r '.nictags[] | select(.name == "'"${admin_nic_tag}"'") | .mac' "${triton_networking_file}")
+    admin_mac=$(sysinfo | jq -r '.["Boot Params"]["admin_nic"]')
     if [ "${admin_mac}" != "" ]; then
         # Replace ':' with '-'
         echo "${admin_mac}" | sed "s/:/-/g" > "${rootmnt}/etc/hostname"
