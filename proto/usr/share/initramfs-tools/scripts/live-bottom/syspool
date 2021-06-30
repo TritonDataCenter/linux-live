@@ -65,11 +65,13 @@ modprobe zfs
 # override this value via cnapi for problematic hardware. Finally, if it's not
 # present in either /etc/defaults/zfs or /proc/cmdline we'll fall back to a
 # value that in our experience seems to work for most cases.
-if grep -q -w ZFS_INITRD_POST_MODPROBE_SLEEP /etc/defaults/zfs; then
-	# shellcheck disable=SC1091
-	. /etc/defaults/zfs
-	#shellcheck disable=SC2154
-	zfs_modprobe_sleep=$ZFS_INITRD_POST_MODPROBE_SLEEP
+if [ -f /etc/defaults/zfs ]; then
+	if grep -q -w ZFS_INITRD_POST_MODPROBE_SLEEP /etc/defaults/zfs; then
+		# shellcheck disable=SC1091
+		. /etc/defaults/zfs
+		#shellcheck disable=SC2154
+		zfs_modprobe_sleep=$ZFS_INITRD_POST_MODPROBE_SLEEP
+	fi
 fi
 eval "$(tr ' ' '\n' < /proc/cmdline | grep -q -w zfs_modprobe_sleep)"
 sleep "${zfs_modprobe_sleep:=10}"
@@ -135,7 +137,7 @@ if [ -n "$syspool" ]; then
 		grep -v lxdpool | sort -k 3 || true) | \
 	while IFS="$(printf '\t')" read -r canmount name mountpoint; do
 		# Skip datasets not marked mountable
-		if [ "$canmount" = on ]; then
+		if ! [ "$canmount" = on ]; then
 			continue
 		fi
 		# legacy means it will get mounted from /etc/fstab
