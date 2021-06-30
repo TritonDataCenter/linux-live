@@ -38,8 +38,6 @@ set -o xtrace
 # never having the pool log.
 TRACE_LOG=${rootmnt:=/}/usr/triton/log/boot/$(basename "$0").log
 mkdir -p "$(dirname "$TRACE_LOG")"
-exec 1>>"${TRACE_LOG}"
-exec 2>>"${TRACE_LOG}"
 # I'd like to have the date/time stamp in here, but dash doesn't suppor it
 # natively, and my attempt at putting a command in the prompt didn't work
 # initially. Maybe this can be revisted later. Note the fragility as described
@@ -47,6 +45,10 @@ exec 2>>"${TRACE_LOG}"
 PS4=
 PS4="${PS4}"'['"$0"'] LINE:${LINENO}: '
 export PS4
+# Finally, set the file descriptors which will start logging.
+exec 1>>"${TRACE_LOG}"
+exec 2>>"${TRACE_LOG}"
+printf 'Script %s started at %s' "$0" "$(date)"
 ################################################################################
 # End extremely fragile portion
 ################################################################################
