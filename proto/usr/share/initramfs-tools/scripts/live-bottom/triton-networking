@@ -173,6 +173,13 @@ done <<EOJQ
 $(jq -r '.vnics[] | [.mac // "null", .nic_tag // "null", .mtu // "null", .ip // "null", .netmask // "null", .gateway // "null", (.resolvers | join(","))] | @tsv' "${triton_networking_file}")
 EOJQ
 
+# We now need to bring up all interfaces we have nic tags for.
+# This might need to be reworked when we do aggrs.
+jq -r '.nictags[] | .mac' < "$triton_networking_file" | while read -r ether ; do
+    ifname=$(get_device_by_hwaddr "$ether")
+    ip link set "$ifname" up
+done
+
 log_end_msg
 
 exit 0
