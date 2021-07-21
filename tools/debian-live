@@ -43,7 +43,7 @@ rust_version=1.5.2
 
 kernel_version=5.10.0-0.bpo.5
 lxd_ver=4.0.4
-zfs_ver=2.0.3
+zfs_ver=2.0.4
 
 # From https://willhaley.com/blog/custom-debian-live-environment/
 packages=(live-boot systemd-sysv)
