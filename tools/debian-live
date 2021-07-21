@@ -76,13 +76,16 @@ packages+=(
     netcat-openbsd
     ntpdate
     openssh-server
+    pciutils
     psmisc
+    python # needed for bpfcc-tools
     rsync
     screen
     socat
     strace
     sudo
     sysstat
+    tcpdump
     vim
 )
 
@@ -101,7 +104,7 @@ packages+=(iptables apparmor apparmor-profiles apparmor-utils liblxc1 lxc acl au
 # These packages are here to aid in building the image - they are installed
 # temporarily, then later removed.
 temp_build_packages=(gawk alien libblkid-dev uuid-dev libudev-dev libssl-dev
-    zlib1g-dev libaio-dev libattr1-dev libelf-dev python python3-setuptools
+    zlib1g-dev libaio-dev libattr1-dev libelf-dev python3-setuptools
     python3-cffi libffi-dev build-essential gdebi dpkg-dev fakeroot debhelper
     dkms python3-dev
 )
@@ -111,7 +114,7 @@ temp_build_packages+=(libacl1-dev libcap-dev lxc-dev libuv1-dev patchelf)
 
 # These are for the lxd test suite:
 temp_build_packages+=(libapparmor-dev libseccomp-dev libcap-dev gettext
-    uuid-runtime bzr socat libsqlite3-dev
+    uuid-runtime bzr libsqlite3-dev
 )
 
 # Args added to 'apt install'
@@ -341,7 +344,7 @@ function remove_temporary_packages {
 		export LC_ALL=C
 
 		apt remove -y $pkgs "kernel-headers-*"
-		apt-get autoremove -y
+		apt-get autoremove --purge -y
 
 		rm -f /tmp/zfs-modules-*.deb
 	'
@@ -358,7 +361,7 @@ function install_usr_triton {
 	    export LC_ALL=C
 
 	    # Install common node modules.
-	    npm install --production -g manta json bunyan assert-plus
+	    npm install --production -g manta json bunyan assert-plus yamljs
 
 	    # Symlink lib/node to ensure global node_modules is on the require path.
 	    # XXX - why is this node_modules not already on the nodejs require path?
