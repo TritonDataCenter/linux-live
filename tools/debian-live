@@ -644,12 +644,25 @@ function postinstall {
 		echo debian-live-$release >/etc/hostname
 		echo "TRITON_RELEASE=\"$release\"" >> /etc/os-release
 
+		# Clean up apt/dpkg, and relocate them so that they reflect
+		# the running PI, and not just whatever was there when the
+		# pool was created.
 		apt-get autoremove --purge -y
 		apt-get clean
 
 		rm -rf /var/lib/apt/lists/*
 		rm -rf /var/cache/*
 		rm -f /etc/machine-id /etc/hostid
+
+		for dir in dpkg apt; do
+			# Make this explicitly in the root
+			mkdir -p "/.var/lib/$dir"
+			rsync -a "/var/lib/${dir}/" "/.var/lib/${dir}/"
+			rm -rf "/var/lib/$dir"
+			# link explicitly to the root so this is *always* the PI
+			# regardless of where we get mounted.
+			ln -s "/.var/lib/$dir" "/var/lib/$dir"
+		done
 
 		passwd -d root
 
