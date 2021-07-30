@@ -42,7 +42,7 @@ golang_ver=1.15.6
 rust_version=1.5.2
 
 kernel_version=5.10.0-0.bpo.5
-lxd_ver=4.0.4
+lxd_ver=4.0.7
 zfs_ver=2.0.4
 
 # From https://willhaley.com/blog/custom-debian-live-environment/
@@ -96,9 +96,9 @@ packages+=(uuid)
 packages+=(nodejs)
 
 # required by lxd:
-packages+=(iptables apparmor apparmor-profiles apparmor-utils liblxc1 lxc acl autoconf
-    dnsmasq-base git libtool rsync pkg-config make tar tcl libuv1 squashfs-tools
-    xz-utils ebtables lvm2 thin-provisioning-tools btrfs-tools
+packages+=(iptables apparmor apparmor-profiles apparmor-utils liblxc1 lxc lxcfs
+    acl autoconf dnsmasq-base git libtool rsync pkg-config make tar tcl libuv1
+    squashfs-tools xz-utils ebtables lvm2 thin-provisioning-tools btrfs-tools
 )
 
 # These packages are here to aid in building the image - they are installed
