@@ -46,7 +46,13 @@ LXDPID=$!
 
 if [ $UNINITIALIZED != 0 ]; then
     /usr/local/lxd/bin/lxd init --auto
+
+    # Networking will be handled by vmadm. We don't need a default network
+    # connection for instances.
+    /usr/local/lxd/bin/lxc profile device remove default eth0
+    /usr/local/lxd/bin/lxc network delete lxdbr0
 fi
+
 # Mountpoint will probably be "none", which is expected due to the way
 # lxc handles zfs datasets. We only need to create the dataset if we
 # get an error running the command.
