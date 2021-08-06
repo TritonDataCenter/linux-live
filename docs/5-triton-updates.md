@@ -14,13 +14,13 @@ under active development and are ages away from being completed.**
 ## Update sdcadm
 
 ```bash
-sdcadm self-update --latest -C dev
+sdcadm self-update --latest -C release
 ```
 
 ## Update headnode components
 
 ```bash
-sdcadm up -C dev --all --latest -y
+sdcadm up -C release --all --latest -y
 ```
 
 ## Update additional components
