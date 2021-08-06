@@ -42,7 +42,7 @@ golang_ver=1.15.6
 rust_version=1.5.2
 
 kernel_version=5.10.0-0.bpo.5
-lxd_ver=4.0.7
+lxd_ver=4.0.6
 zfs_ver=2.0.4
 
 # From https://willhaley.com/blog/custom-debian-live-environment/
