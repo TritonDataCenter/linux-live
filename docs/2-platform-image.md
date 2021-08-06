@@ -124,34 +124,54 @@ platform/x86_64/build.tgz.packages
 platform/x86_64/build.tgz.manifest
 ```
 
-The existing `sdcadm platform` command will be enhanced to support Linux
+The existing `sdcadm platform` command is used to install Linux
 platform images.
+
+```shell
+sdcadm platform install /path/to/image.tar.gz
+```
 
 ### iPXE configuration
 
-When a Linux CN is configured in booter, the following files will be configured
-under `/tftboot`:
+When a Linux platform is assigned to a CN, the following files will be
+configured in the dhcpd zone under `/tftboot`:
 
-* `menu.lst.01<MAC>`: grub configuration
+* `menu.lst.01<MAC>`: grub configuration (legacy configuration)
 * `boot.ipxe.01<MAC>`: ipxe configuration
 * `bootfs/<MAC>/networking.json`: same as SmartOS
 
-`boot.ipxe01<MAC>` will resemble:
+**Note:** Triton compute nodes will boot Loader from the USB first, then load
+iPXE and chain load the boot.ipxe file. Chain loading grub is legacy, but still
+supported. In most cases it is not needed and should not be used.
+
+`boot.ipxe.01<MAC>` will resemble:
 
 ```ipxe
 #!ipxe
-kernel /os/20200401T0123456Z/platform/x86_64/vmlinuz console=ttyS0 boot=live fetch=http:///os/20200401T0123456Z/platform/x86_64/filesystem.squashfs
-initrd /os/20200401T0123456Z/platform/x86_64/initrd
-module http://<asset_server>/<path>/node.config /etc/node.config
-module http://<booter>/bootfs/<MAC>/networking.json /etc/triton-networking.json
-module http://<booter>/bootfs/<MAC>/networking.json.hash /etc/triton-networking.json.hash
+kernel /os/20210731T223008Z/platform/x86_64/vmlinuz boot=live console=tty0 console=ttyS1,115200n8 <EXTRA OPTS> fetch=http://10.33.166.12/os/20210731T223008Z/platform/x86_64/filesystem.squashfs
+initrd http://<booter>/os/20210731T223008Z/platform/x86_64/initrd
+module http://<booter>/extra/joysetup/node.config /etc/node.config
+module http://${next-server}/bootfs/<MAC>/networking.json /etc/triton-networking.json
+module http://${next-server}/bootfs/<MAC>/networking.json.hash /etc/triton-networking.json.hash
 boot
 ```
 
-This configuration requires that booter is configured to serve files via HTTP,
-not TFTP.
+This example assumes that booter is configured to serve files via HTTP,
+not TFTP. The current Triton default is for HTTP boot, and can significantly
+speed up boot times. If you have an older Triton installation and would like
+to switch to HTTP boot, use the following commands:
+
+```shell
+dhcpd_svc=$(sdc-sapi /services?name=dhcpd | json -Ha uuid)
+sapiadm update "$dhcpd_svc" metadata.http_pxe_boot=true
+```
+
+<!--
 
 ### ISC DHCP server configuration
+
+**Note:** This was used in early development and is provided for informational
+purposes only. Booting via Triton is the only supported PXE method.
 
 As a stand-in, ISC DHCP server can be used on a network that doesn't already
 have another DHCP server.  The following configuration will serve up dynamic
@@ -252,7 +272,9 @@ server {
 }
 ```
 
-### Common Boot Procedure
+-->
+
+### Boot Procedure
 
 The boot of a Linux CN via iPXE uses the following general procedure:
 

@@ -38,7 +38,7 @@ are used in SmartOS.  A quick mapping is as follows:
 | ZFS                      | ZFS                   | We will follow Ubuntu's lead in shipping ZFS                         |
 | `vmadm action`           | `vmadm action`        | Some actions on Linux will be unsupported                            |
 | `imgadm action`          | `imgadm action`       | Some actions on Linux will be unsupported                            |
-| zoneadmd                 | lxc/lxc               | Linux container service                                              |
+| zoneadmd                 | lxc/lxd               | Linux container service                                              |
 | `zoneadm -z $i boot`     | `lxc start triton-$i` | Instance actions are performed through lxc/lxd                       |
 | `zoneadm -z $i shutdown` | `lxc stop triton-$i`  | Same                                                                 |
 | `zlogin $i`              | `lxc console triton-$i` or `lxc exec triton-$i` | |
