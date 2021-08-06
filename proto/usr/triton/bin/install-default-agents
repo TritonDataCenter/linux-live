@@ -30,6 +30,13 @@ set -o xtrace
 AGENT_ROOT="/opt/smartdc/agents"
 AGENT_NODE_DIR="/opt/smartdc/agents/lib/node_modules"
 
+while getopts "u" options; do
+   case $options in
+      u ) ALLOW_UPGRADE=1;;
+      * ) exit ;;
+   esac
+done
+
 mkdir -p "${AGENT_ROOT}"
 
 if [[ ! -d ${AGENT_ROOT}/etc/config-agent.d ]]; then
@@ -58,12 +65,18 @@ do
     fi
     agent_opt_dir="${AGENT_NODE_DIR}/${agent}"
     if [[ ! -d ${agent_opt_dir} ]]; then
+        DO_REGISTER=1
+    fi
+    if [[ ! -d ${agent_opt_dir} ]] || (( ALLOW_UPGRADE > 0 )); then
         agent_usr_dir="${DEFAULT_AGENTS_DIR}/${agent}"
 
-        echo "Copying ${agent} from ${agent_usr_dir} to ${agent_opt_dir}"
-        cp -rp "${agent_usr_dir}" "${agent_opt_dir}"
 
-        /usr/triton/bin/register-agent "${agent}" "${agent_opt_dir}"
+        echo "Copying ${agent} from ${agent_usr_dir} to ${agent_opt_dir}"
+        rsync -av --delete "${agent_usr_dir}/" "${agent_opt_dir}/"
+
+        if (( DO_REGISTER > 0 )); then
+            /usr/triton/bin/register-agent "${agent}" "${agent_opt_dir}"
+        fi
     fi
 done
 
