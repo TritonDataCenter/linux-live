@@ -64,6 +64,12 @@ if ! zfs list -H -o mountpoint zones/lxdpool ; then
     /usr/local/lxd/bin/lxc profile device add default root disk path=/ pool=lxdpool
 fi
 
+# Ensure lxcfs mount point exists.
+# Check only for existence, not necessarily that it's a directory in case
+# someone makes it a symlink to somewhere else.
+if ! [[ -e /var/lib/lxcfs ]]; then
+    mkdir -p /var/lib/lxcfs
+fi
 
 # Can safely comment out the next group of commands. These are just to
 # print some output expected to work
