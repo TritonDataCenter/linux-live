@@ -39,7 +39,7 @@ name="Debian 10"
 docurl=https://github.com/joyent/linux-live
 
 golang_ver=1.15.6
-rust_version=1.5.2
+rust_version=1.52.0
 
 kernel_version=5.10.0-0.bpo.8
 lxd_ver=4.0.6
@@ -207,7 +207,8 @@ function preflight_check {
 		apt update
 		apt install -y "${missing[@]}"
 		if [[ $missing_rust == "true" ]]; then
-			curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+			curl --proto '=https' --tlsv1.2 -sSf \
+				https://sh.rustup.rs | \
 				sh -s -- -q -y --profile minimal \
 				--default-host x86_64-unknown-linux-gnu \
 				--default-toolchain "$rust_version"
