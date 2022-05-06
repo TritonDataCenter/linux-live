@@ -1,2 +1,23 @@
-# This script is to duplicate similar functionality in SmartOS.
-echo "global"
+#!/bin/bash
+
+mdata_get() {
+    curl -s --unix-socket /dev/lxd/sock lxc/1.0/meta-data | awk -F': ' "/$1/"' {print $2}'
+}
+
+virt_type=$(systemd-detect-virt)
+
+case $virt_type in
+    lxc)
+        zonename=$(mdata_get instance-id)
+        ;;
+    none)
+        zonename='global'
+        ;;
+    *)
+        printf 'Unable to determine\n'
+        exit 1
+        ;;
+esac
+
+printf '%s\n' "$zonename"
+
