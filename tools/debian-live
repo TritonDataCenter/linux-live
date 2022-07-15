@@ -34,14 +34,14 @@ if [[ -f ~/.cargo/env ]]; then
 	source ~/.cargo/env
 fi
 
-debver=buster
-name="Debian 10"
+debver=bullseye
+name="Debian 11"
 docurl=https://github.com/joyent/linux-live
 
 golang_ver=1.15.6
 rust_version=1.52.0
 
-kernel_version=5.10.0-0.bpo.8
+kernel_version=5.10.0-8
 lxd_ver=4.0.6
 zfs_ver=2.0.4
 
@@ -98,7 +98,7 @@ packages+=(nodejs)
 # required by lxd:
 packages+=(iptables apparmor apparmor-profiles apparmor-utils liblxc1 lxc lxcfs
     acl autoconf dnsmasq-base git libtool rsync pkg-config make tar tcl libuv1
-    squashfs-tools xz-utils ebtables lvm2 thin-provisioning-tools btrfs-tools
+    squashfs-tools xz-utils ebtables lvm2 thin-provisioning-tools btrfs-progs
 )
 
 # These packages are here to aid in building the image - they are installed
@@ -236,19 +236,19 @@ function install_live {
 	deb http://deb.debian.org/debian/ $debver main
 	deb-src http://deb.debian.org/debian/ $debver main
 
-	deb http://security.debian.org/debian-security $debver/updates main
-	deb-src http://security.debian.org/debian-security $debver/updates main
+	deb http://security.debian.org/debian-security ${debver}-security main
+	deb-src http://security.debian.org/debian-security ${debver}-security main
 
 	deb http://deb.debian.org/debian/ $debver-updates main
 	deb-src http://deb.debian.org/debian/ $debver-updates main
 	EOF
 
-	chroot "$root" tee /etc/apt/sources.list.d/$debver-backports.list \
-	    >/dev/null <<-EOF
-	# https://github.com/zfsonlinux/zfs/wiki/Debian#installation
-	deb http://deb.debian.org/debian $debver-backports main contrib
-	deb-src http://deb.debian.org/debian $debver-backports main contrib
-	EOF
+	#chroot "$root" tee /etc/apt/sources.list.d/$debver-backports.list \
+	#    >/dev/null <<-EOF
+	## https://github.com/zfsonlinux/zfs/wiki/Debian#installation
+	#deb http://deb.debian.org/debian $debver-backports main contrib
+	#deb-src http://deb.debian.org/debian $debver-backports main contrib
+	#EOF
 
 	chroot "$root" tee /etc/apt/preferences.d/90_zfs >/dev/null <<-EOF
 	# https://github.com/zfsonlinux/zfs/wiki/Debian#installation
@@ -270,8 +270,8 @@ function install_kernel_packages {
 	    "linux-headers-${kernel_version}-amd64"
 
 	# This removes the old kernel
-	chroot "$root" env DEBIAN_FRONTEND=noninteractive apt-get remove \
-	    "linux-image-4*" "linux-headers-4*" "linux-kbuild-4*"
+	#chroot "$root" env DEBIAN_FRONTEND=noninteractive apt-get remove \
+	    #"linux-image-4*" "linux-headers-4*" "linux-kbuild-4*"
 }
 
 # Install system packages.
@@ -344,7 +344,7 @@ function remove_temporary_packages {
 		export DEBIAN_FRONTEND=noninteractive
 		export LC_ALL=C
 
-		apt remove -y $pkgs "kernel-headers-*"
+		apt remove -y $pkgs "linux-headers-*"
 		apt-get autoremove --purge -y
 
 		rm -f /tmp/zfs-modules-*.deb
