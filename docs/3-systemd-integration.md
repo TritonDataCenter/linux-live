@@ -5,7 +5,8 @@
 -->
 
 <!--
-    Copyright 2020 Joyent, Inc
+    Copyright 2020 Joyent, Inc.
+    Copyright 2022 MNX Cloud, Inc.
 -->
 
 # Systemd Integration
@@ -93,7 +94,7 @@ Where the service directories are:
 
 ### Example: Fixing a broken service
 
-As described in [linux-live#10](https://github.com/joyent/linux-live/issues/10),
+As described in [linux-live#10](https://github.com/TritonDataCenter/linux-live/issues/10),
 the `systemd-nspawn@.service` template service requires a workaround to allow
 container reboots to work.
 
@@ -141,9 +142,9 @@ delivered under `/usr/lib/systemd`.  This ensures that most directories under
 The examples below describe static configuration in `/etc/systemd/network`.
 This is a place-holder until dynamic configuration from `networking.json` is
 enabled.  As described in
-[linux-live#12](https://github.com/joyent/linux-live/issues/12), the networking
-configuration provided by booter in `networking.json` should be transformed into
-configuration in `/run/systemd` using a
+[linux-live#12](https://github.com/TritonDataCenter/linux-live/issues/12), the
+networking configuration provided by booter in `networking.json` should be
+transformed into configuration in `/run/systemd` using a
 [generator](https://www.freedesktop.org/software/systemd/man/systemd.generator.html).
 
 #### Enable DHCP on all NICs

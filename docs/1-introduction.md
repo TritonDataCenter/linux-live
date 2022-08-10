@@ -5,7 +5,8 @@
 -->
 
 <!--
-    Copyright 2021 Joyent, Inc
+    Copyright 2021 Joyent, Inc.
+    Copyright 2022 MNX Cloud, Inc.
 -->
 
 # Introduction
@@ -15,7 +16,7 @@ image (PI) for Triton Compute.  Triton has historically supported SmartOS for
 compute nodes (CNs) and head nodes (HNs).  The construction of SmartOS-based
 platform images is handled by [smartos-live][smartos-live].
 
-[smartos-live]: https://github.com/joyent/smartos-live
+[smartos-live]: https://github.com/TritonDataCenter/smartos-live
 
 ## Stateless platform images with local storage
 
@@ -48,7 +49,7 @@ those APIs so it will all be the same from the Triton perspective.
 
 Notable in all of this is that as systemd has become capable of taking over more
 and more parts of the OS, it becomes a useful abstraction layer across
-distributions.  Joyent's reference implementation may be based on a freely
+distributions.  Triton's reference implementation may be based on a freely
 redistributable distribution while allowing Triton CN software to be easily
 supported on a wide variety of distributions that use systemd of the same or
 newer version.
@@ -95,4 +96,4 @@ platform images to be released per day.
 If you run into an issue that is unreported, please do file it! You can also
 drop by IRC in `#triton` on `irc.libera.chat` to discuss it with us.
 
-[gh-issues]: https://github.com/joyent/linux-live/issues
+[gh-issues]: https://github.com/TritonDataCenter/linux-live/issues

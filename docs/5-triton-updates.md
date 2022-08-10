@@ -36,7 +36,7 @@ sdcadm experimental update-other
 Currently, platform images are available from manta.
 
 ```bash
-curl -o /var/tmp/platform-20201211T092901Z.tgz https://us-east.manta.joyent.com/Joyent_Dev/public/xxxxx/platform-20201211T092901Z.tgz
+curl -o /var/tmp/platform-20201211T092901Z.tgz https://us-central.manta.mnx.io/Joyent_Dev/public/TritonDCLinux/platform-20201211T092901Z.tgz
 sdcadm platform install /var/tmp/platform-20201211T092901Z.tgz
 ```
 

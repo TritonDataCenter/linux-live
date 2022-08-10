@@ -5,7 +5,8 @@
 -->
 
 <!--
-    Copyright 2020 Joyent, Inc
+    Copyright 2020 Joyent, Inc.
+    Copyright 2022 MNX Cloud, Inc.
 -->
 
 # Platform Image
@@ -39,7 +40,7 @@ The platform image is based on Debian utilizing ZFS on Linux.
    image builder:
 
     ```bash
-    git clone https://github.com/joyent/linux-live
+    git clone https://github.com/TritonDataCenter/linux-live
     cd linux-live
     ./tools/debian-live
     ```
@@ -69,12 +70,12 @@ the image.  In general they fall into the following categories:
   * Altering service dependencies so that service configuration stored in ZFS is
     respected.
   * Generate the same hostid every time to keep ZFS happy.
-  * Joyent utilities that SmartOS admins expect to have.  This includes manta
-    client utilities (`mget` and friends) and `json`.
+  * Utilities that SmartOS admins expect to have.  This includes `json` and
+    `bunyan`, among other things.
 
 As much as possible, Triton components that are part of the image are installed
 under `/usr/triton`.  When needed, symbolic links should be installed
-for compatibility.  For instance, much of Joyent's software may assume that
+for compatibility.  For instance, much of Triton software may assume that
 `/usr/node/bin/node` is the platform's node installation, so `/usr/node` is a
 symbolic link to the appropriate directory under `/usr/triton`.
 
@@ -98,7 +99,7 @@ includes, but is not limited to:
 ## Image Distribution
 
 Initially images will be available via Manta. At a later time, these will be
-distributed via updates.joyent.com.
+distributed via `updates.tritondatacenter.com`.
 
 ### Platform Image Import
 
@@ -324,7 +325,7 @@ As stated earlier in this document, in general the image creation process is
 roughly:
 
 ```bash
-git clone https://github.com/joyent/linux-live
+git clone https://github.com/TritonDataCenter/linux-live
 cd linux-live
 sudo tools/debian-live
 ```
@@ -337,23 +338,23 @@ generated `.iso` and `.usb.gz` files are.
 The debian-live image can be created on an existing debian-live system.  The
 `tools/debian-live` script can install the necessary dependencies.
 
-#### Build machine installation in Joyent
+#### Build machine installation is Triton Linux
 
 The build process is self-hosting.  The first image needs to be created
 elsewhere - a Debian 10 (64 bit) box with the right packages well do.  Once your
 organization has the first image, it is probably easiest to go with the self
 hosting route.
 
-#### Build machine installation outside Joyent
+#### Build machine installation is not Triton Linux
 
-If you are not part of Joyent and your organization has not yet built its own
-image, you will need to use a generic Debian 10 system to build the the first
-image.  The procedure is as follows.
+If your organization has not yet built its own image, you will need to use a
+generic Debian 10 system to build the the first image.  The procedure is as
+follows.
 
 ##### `/bin/sh`
 
 Debian uses `dash` as the Bourne shell.  It is less featureful than `bash`,
-which causes problems for some Joyent Makefiles.  To work around this:
+which causes problems for some Triton Makefiles.  To work around this:
 
 Over time, each problematic `Makefile` should be changed to include:
 
@@ -400,7 +401,7 @@ Run the preflight check to see what other things you need.  If it tells you to
 install other packages, do the needful.
 
 ```bash
-$ git clone https://github.com/joyent/linux-live
+$ git clone https://github.com/TritonDataCenter/linux-live
 $ cd linux-live
 $ ./tools/debian-live preflight_check
 $ echo $?
@@ -421,7 +422,7 @@ of the `debian-live` script.
 ### Repository structure
 
 The repository has the following directories that largely conform to what you
-would expect from a Joyent repository.
+would expect from a Triton repository.
 
 * `doc`: the directory containing the file you are reading now.
 * `proto`: extra files that are copied directly into the repository.  In
@@ -431,11 +432,15 @@ would expect from a Joyent repository.
   created.
 * `tools`: home to the `debian-live` script and perhaps other tools.
 
+<!--
+
 ### Other components
 
 Other pre-built binary components may be found in Manta at
 `/Joyent_Dev/public/linuxcn`.  Currently, the only component pulled from that
-directory is an [sdcnode](https://github.com/joyent/sdcnode) build.
+directory is an [sdcnode](https://github.com/TritonDataCenter/sdcnode) build.
+
+-->
 
 ### Iterative development
 

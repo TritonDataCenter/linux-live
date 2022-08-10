@@ -6,10 +6,11 @@
 
 #
 # Copyright 2020 Joyent, Inc.
+# Copyright 2022 MNX Cloud, Inc.
 #
 
 #
-# This file is delivered as part of the Triton Platform Image.
+# This file is delivered as part of the Triton Linux Platform Image.
 #
 # On boot, the node ur-agent process will connect to a rabbitmq host
 # to heartbeat information about this compute node. The sdc-server
@@ -19,7 +20,7 @@
 
 [Unit]
 Description=Triton ur-agent used for server setup
-Documentation=https://github.com/joyent/sdc-ur-agent#linuxcn
+Documentation=https://github.com/TritonDataCenter/sdc-ur-agent#linuxcn
 After=network.target
 
 [Service]

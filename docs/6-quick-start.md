@@ -5,7 +5,8 @@
 -->
 
 <!--
-    Copyright 2021 Joyent, Inc
+    Copyright 2021 Joyent, Inc.
+    Copyright 2022 MNX Cloud, Inc.
 -->
 
 # Triton Datacenter Linux CN Quick Start Guide
@@ -35,13 +36,13 @@ they'll start being added to the `experimental` channel. You should keep as
 up to date as possible with Linux CN images. Things can move pretty fast.
 
 1. Check Manta for the latest platform image
-   (<https://us-east.manta.joyent.com/Joyent_Dev/public/manta-browse/browse.html>,
+   (<https://us-central.manta.mnx.io/Joyent_Dev/public/manta-browse/browse.html>,
    drill down to the TritonDCLinux directory).
 2. Download the image
 
         mkdir /var/tmp/linuxcn
         cd /var/tmp/linuxcn
-        curl -OC - https://us-east.manta.joyent.com/Joyent_Dev/public/TritonDCLinux/20210731T223008Z/platform-20210731T223008Z.tgz
+        curl -OC - https://us-central.manta.mnx.io/Joyent_Dev/public/TritonDCLinux/20210731T223008Z/platform-20210731T223008Z.tgz
 
 3. Install the image
 
@@ -169,4 +170,4 @@ Not all provision options are supported. E.g., delegated datasets. Provisions
 are equally likely to fail or silently ignore unsupported options. If there's
 a feature you're eagerly looking forward to, file an issue.
 
-[triton-upgrade]: https://docs.joyent.com/private-cloud/maint-and-upgrades
+[triton-upgrade]: https://docs.tritondatacenter.com/private-cloud/maint-and-upgrades

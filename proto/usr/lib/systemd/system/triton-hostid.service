@@ -6,10 +6,11 @@
 
 #
 # Copyright 2020 Joyent, Inc.
+# Copyright 2022 MNX Cloud, Inc.
 #
 
 #
-# This file is delivered as part of the Triton Platform Image.
+# This file is delivered as part of the Triton Linux Platform Image.
 #
 # Linux generates the hostid based upon the IP address of the system.  If the IP
 # address changes (e.g. DHCP lease expires while it is down) this can cause ZFS
@@ -19,7 +20,7 @@
 
 [Unit]
 Description=Set hostid based on system uuid
-Documentation=https://github.com/joyent/linux-live
+Documentation=https://github.com/TritonDataCenter/linux-live
 DefaultDependencies=no
 Before=zfs-import-cache.service
 Before=zfs-import-scan.service

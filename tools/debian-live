@@ -8,6 +8,7 @@
 
 #
 # Copyright 2021 Joyent, Inc.
+# Copyright 2022 MNX Cloud, Inc.
 #
 
 #
@@ -36,12 +37,12 @@ fi
 
 debver=buster
 name="Debian 10"
-docurl=https://github.com/joyent/linux-live
+docurl=https://github.com/TritonDataCenter/linux-live
 
 golang_ver=1.15.6
 rust_version=1.52.0
 
-kernel_version=5.10.0-0.bpo.8
+kernel_version=5.10.0-0.bpo.15
 lxd_ver=4.0.6
 zfs_ver=2.0.4
 
@@ -382,8 +383,8 @@ function install_usr_triton {
 
 # Install node scripts/modules that will be used by sdc-server setup:
 #  node_modules:
-#   - joyent/node-getopt
-#   - joyent/node-zfs
+#   - TritonDataCenter/node-getopt
+#   - TritonDataCenter/node-zfs
 #  scripts:
 #   - disklayout
 #   - mkzpool
@@ -396,25 +397,25 @@ function install_usr_triton_helper_scripts {
 	    export PATH=/usr/node/bin:$PATH
 
 	    # node-getopt
-	    git -C /usr/triton clone https://github.com/joyent/node-getopt
+	    git -C /usr/triton clone https://github.com/TritonDataCenter/node-getopt
 	    mv /usr/triton/node-getopt/lib/getopt.js \
 		/usr/lib/node_modules/
 	    rm -rf /usr/triton/node-getopt
 
 	    # node-zfs
 	    # Note: required for disklayout, mkzpool.
-	    git -C /usr/triton clone -b linuxcn https://github.com/joyent/node-zfs
+	    git -C /usr/triton clone -b linuxcn https://github.com/TritonDataCenter/node-zfs
 	    mv /usr/triton/node-zfs/lib/*.js \
 		/usr/lib/node_modules/
 	    rm -rf /usr/triton/node-zfs
 
 	    # disklayout
-	    curl -sSL https://raw.githubusercontent.com/joyent/smartos-live/linuxcn/src/disklayout.js > \
+	    curl -sSL https://raw.githubusercontent.com/TritonDataCenter/smartos-live/linuxcn/src/disklayout.js > \
 		/usr/triton/bin/disklayout
 	    chmod 700 /usr/triton/bin/disklayout
 
 	    # mkzpool
-	    curl -sSL https://raw.githubusercontent.com/joyent/smartos-live/linuxcn/src/mkzpool.js > \
+	    curl -sSL https://raw.githubusercontent.com/TritonDataCenter/smartos-live/linuxcn/src/mkzpool.js > \
                 /usr/triton/bin/mkzpool
 	    chmod 700 /usr/triton/bin/mkzpool
 	'
@@ -427,7 +428,7 @@ function install_usr_triton_ur_agent {
 	    set -xeuo pipefail
 	    export LC_ALL=C
 
-	    git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/joyent/sdc-ur-agent ur-agent
+	    git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/TritonDataCenter/sdc-ur-agent ur-agent
 	    # Install a fake image_uuid (remove when we have a proper build).
 	    uuid -v4 > /usr/triton/defaults/agents/ur-agent/image_uuid
 	'
@@ -440,7 +441,7 @@ function install_usr_triton_cn_agent {
 	    set -xeuo pipefail
 	    export LC_ALL=C
 
-	    git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/joyent/sdc-cn-agent cn-agent
+	    git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/TritonDataCenter/sdc-cn-agent cn-agent
 	    cd /usr/triton/defaults/agents/cn-agent
 	    rm -f package-lock.json
 	    npm install --production --ignore-scripts
@@ -456,7 +457,7 @@ function install_usr_triton_imgadm {
         set -xeuo pipefail
         export LC_ALL=C
 
-        git -C /usr/triton/defaults clone -b linuxcn https://github.com/joyent/node-imgadm imgadm
+        git -C /usr/triton/defaults clone -b linuxcn https://github.com/TritonDataCenter/node-imgadm imgadm
         cd /usr/triton/defaults/imgadm
         npm install --production
         # Install a fake image_uuid (remove when we have a proper build).
@@ -471,7 +472,7 @@ function install_usr_triton_imgadm {
 
 # Install config-agent and the dependencies (nice to have a build of this).
 function install_usr_triton_config_agent {
-	# git -C $scratch clone -b linuxcn https://github.com/joyent/sdc-config-agent
+	# git -C $scratch clone -b linuxcn https://github.com/TritonDataCenter/sdc-config-agent
 	# cd $scratch/sdc-config-agent && npm install
 	# cp -rp $scratch/sdc-config-agent $root/usr/triton/
 
@@ -480,7 +481,7 @@ function install_usr_triton_config_agent {
 	    set -xeuo pipefail
 	    export LC_ALL=C
 
-	    git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/joyent/sdc-config-agent config-agent
+	    git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/TritonDataCenter/sdc-config-agent config-agent
 	    cd /usr/triton/defaults/agents/config-agent
 	    rm -f package-lock.json
 	    npm install --production --ignore-scripts
@@ -492,7 +493,7 @@ function install_usr_triton_config_agent {
 
 # Install net-agent and the dependencies (nice to have a build of this).
 function install_usr_triton_net_agent {
-	# git -C $scratch clone -b linuxcn https://github.com/joyent/sdc-net-agent
+	# git -C $scratch clone -b linuxcn https://github.com/TritonDataCenter/sdc-net-agent
 	# cd $scratch/sdc-net-agent && npm install
 	# cp -rp $scratch/sdc-net-agent $root/usr/triton/
 
@@ -501,7 +502,7 @@ function install_usr_triton_net_agent {
 	    set -xeuo pipefail
 	    export LC_ALL=C
 
-	    git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/joyent/sdc-net-agent net-agent
+	    git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/TritonDataCenter/sdc-net-agent net-agent
 	    cd /usr/triton/defaults/agents/net-agent
 	    rm -f package-lock.json
 	    npm install --production --ignore-scripts
@@ -518,7 +519,7 @@ function install_usr_triton_vm_agent {
         set -xeuo pipefail
         export LC_ALL=C
 
-        git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/joyent/sdc-vm-agent vm-agent
+        git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/TritonDataCenter/sdc-vm-agent vm-agent
         cd /usr/triton/defaults/agents/vm-agent
         npm install --production
         # Install a fake image_uuid (remove when we have a proper build).
@@ -534,7 +535,7 @@ function install_usr_triton_metadata {
         set -xeuo pipefail
         export LC_ALL=C
 
-        git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/joyent/triton-metadata metadata-agent
+        git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/TritonDataCenter/triton-metadata metadata-agent
         cd /usr/triton/defaults/agents/metadata-agent
         npm install --production
 		# Install a fake image_uuid (remove when we have a proper build).
@@ -550,7 +551,7 @@ function install_usr_triton_vminfod {
         set -xeuo pipefail
         export LC_ALL=C
 
-        git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/joyent/triton-vminfod vminfod-agent
+        git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/TritonDataCenter/triton-vminfod vminfod-agent
         cd /usr/triton/defaults/agents/vminfod-agent
         npm install --production
 		# Install a fake image_uuid (remove when we have a proper build).
@@ -719,17 +720,17 @@ serial --speed=115200 --unit=1 --word=8 --parity=no --stop=1
 terminal_input --append serial
 terminal_output --append serial
 
-menuentry "Joyent Debian Live $release without DHCP ttyS0" {
+menuentry "Triton Debian Live $release without DHCP ttyS0" {
     linux /vmlinuz boot=live console=tty0 console=ttyS1
     initrd /initrd
 }
 
-menuentry "Joyent Debian Live $release with default networking" {
+menuentry "Triton Debian Live $release with default networking" {
     linux /vmlinuz boot=live console=tty0 console=ttyS1 triton.dhcp-all-nics
     initrd /initrd
 }
 
-menuentry "Joyent Debian Live $release without DHCP" {
+menuentry "Triton Debian Live $release without DHCP" {
     linux /vmlinuz boot=live
     initrd /initrd
 }
@@ -1109,7 +1110,7 @@ motd=$'
 
 commit=$(cd "$(dirname "$0")" && git rev-parse HEAD)
 product="
-Name: Joyent Platform Image
+Name: Triton Linux Platform Image
 Image: $name $release
 Documentation: $docurl
 Description: $name with ZFS $zfs_ver

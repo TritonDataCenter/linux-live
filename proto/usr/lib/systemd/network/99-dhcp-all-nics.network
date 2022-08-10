@@ -6,11 +6,12 @@
 
 #
 # Copyright 2020 Joyent, Inc.
+# Copyright 2022 MNX Cloud, Inc.
 #
 
 #
-# This file is part of the Joyent platform image.  It is intended to configure
-# networking prior to being configured by Triton.
+# This file is part of the Triton Linux platform image.  It is intended to
+# configure networking prior to being configured by Triton.
 #
 
 [Match]

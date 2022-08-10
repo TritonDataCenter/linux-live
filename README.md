@@ -18,7 +18,7 @@ areas of exploration.
 
 [doc-pi]: docs/2-platform-image.md
 [doc-qs]: docs/6-quick-start.md
-[triton]: https://github.com/joyent/triton
+[triton]: https://github.com/TritonDataCenter/triton
 
 ## Bugs
 
@@ -39,7 +39,7 @@ You can also find bugs filed in our internal Jira here:
 You can reach out to us in the following ways:
 
 * [SDC Discuss][ml] mailing list
-* `#joyent` on [Libera Chat IRC network][libera]
+* `#triton` on [Libera Chat IRC network][libera]
 
 [ml]: https://smartdatacenter.topicbox.com/groups/sdc-discuss
 [libera]: https://libera.chat/
