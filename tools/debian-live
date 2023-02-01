@@ -42,7 +42,7 @@ docurl=https://github.com/joyent/linux-live
 golang_ver=1.15.6
 rust_version=1.52.0
 
-kernel_version=5.10.0-8
+kernel_version=5.10.0-18
 lxd_ver=4.0.6
 zfs_ver=2.0.4
 
