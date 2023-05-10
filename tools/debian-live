@@ -8,7 +8,7 @@
 
 #
 # Copyright 2021 Joyent, Inc.
-# Copyright 2022 MNX Cloud, Inc.
+# Copyright 2023 MNX Cloud, Inc.
 #
 
 #
@@ -37,13 +37,16 @@ fi
 
 debver=bullseye
 name="Debian 11"
-docurl=https://github.com/joyent/linux-live
+docurl=https://github.com/TritonDataCenter/linux-live
 
-golang_ver=1.15.6
+# LXD >= 5 requies go >= 1.18
+golang_ver=1.18.10
 rust_version=1.52.0
 
-kernel_version=5.10.0-18
-lxd_ver=4.0.6
+kernel_version=5.10.0-21
+
+# $MAJOR.0.$PATCH are LTS releases for LXD
+lxd_ver=5.0.1
 zfs_ver=2.0.4
 
 # From https://willhaley.com/blog/custom-debian-live-environment/
@@ -100,6 +103,7 @@ packages+=(nodejs)
 packages+=(iptables apparmor apparmor-profiles apparmor-utils liblxc1 lxc lxcfs
     acl autoconf dnsmasq-base git libtool rsync pkg-config make tar tcl libuv1
     squashfs-tools xz-utils ebtables lvm2 thin-provisioning-tools btrfs-progs
+    attr
 )
 
 # These packages are here to aid in building the image - they are installed
@@ -111,7 +115,8 @@ temp_build_packages=(gawk alien libblkid-dev uuid-dev libudev-dev libssl-dev
 )
 
 # packages required to build lxd
-temp_build_packages+=(libacl1-dev libcap-dev lxc-dev libuv1-dev patchelf)
+temp_build_packages+=(libacl1-dev libcap-dev lxc-dev libuv1-dev patchelf
+	liblz4-dev shellcheck)
 
 # These are for the lxd test suite:
 temp_build_packages+=(libapparmor-dev libseccomp-dev libcap-dev gettext
@@ -469,7 +474,6 @@ function install_usr_triton_imgadm {
 	'
 }
 
-
 # Install config-agent and the dependencies (nice to have a build of this).
 function install_usr_triton_config_agent {
 	# git -C $scratch clone -b linuxcn https://github.com/TritonDataCenter/sdc-config-agent
@@ -489,7 +493,6 @@ function install_usr_triton_config_agent {
 	    uuid -v4 > image_uuid
 	'
 }
-
 
 # Install net-agent and the dependencies (nice to have a build of this).
 function install_usr_triton_net_agent {
@@ -511,7 +514,6 @@ function install_usr_triton_net_agent {
 	'
 }
 
-
 # Install vm-agent and the dependencies (nice to have a build of this).
 function install_usr_triton_vm_agent {
 	chroot "$root" bash -c '
@@ -526,7 +528,6 @@ function install_usr_triton_vm_agent {
         uuid -v4 > image_uuid
 	'
 }
-
 
 # Install metadata agent and the dependencies (nice to have a build of this).
 function install_usr_triton_metadata {
@@ -543,7 +544,6 @@ function install_usr_triton_metadata {
 	'
 }
 
-
 # Install vminfod and the dependencies (nice to have a build of this).
 function install_usr_triton_vminfod {
 	chroot "$root" bash -c '
@@ -558,7 +558,6 @@ function install_usr_triton_vminfod {
 		uuid -v4 > image_uuid
 	'
 }
-
 
 function install_proto {
 	(cd "$repo/src" && make install)
@@ -592,7 +591,6 @@ function install_proto {
 		ln -s /usr/triton/bin/sysinfo /usr/bin/sysinfo
 	    fi
 	'
-
 }
 
 # Build and install LXC/LXD. Like ZFS, eventually this should be done
@@ -619,16 +617,26 @@ function install_lxd {
 	    export GOBIN=$GOPATH/bin
 
 	    make deps
-	    export CGO_CFLAGS="-I${GOPATH}/deps/sqlite/ -I${GOPATH}/deps/libco/ -I${GOPATH}/deps/raft/include/ -I${GOPATH}/deps/dqlite/include/"
-	    export CGO_LDFLAGS="-L${GOPATH}/deps/sqlite/.libs/ -L${GOPATH}/deps/libco/ -L${GOPATH}/deps/raft/.libs -L${GOPATH}/deps/dqlite/.libs/"
-	    export LD_LIBRARY_PATH="${GOPATH}/deps/sqlite/.libs/:${GOPATH}/deps/libco/:${GOPATH}/deps/raft/.libs/:${GOPATH}/deps/dqlite/.libs/"
-	    export CGO_LDFLAGS_ALLOW="-Wl,-wrap,pthread_create"
+
+	    export CGO_CFLAGS="-I${LXD_RELEASE}/vendor/raft/include/ -I${LXD_RELEASE}/vendor/dqlite/include/"
+	    export CGO_LDFLAGS="-L${LXD_RELEASE}/vendor/raft/.libs/ -L${LXD_RELEASE}/vendor/dqlite/.libs/"
+	    export LD_LIBRARY_PATH="${LXD_RELEASE}/vendor/raft/.libs/:${LXD_RELEASE}/vendor/dqlite/.libs/"
+	    export CGO_LDFLAGS_ALLOW="(-Wl,-wrap,pthread_create)|(-Wl,-z,now)"
 
 	    make
+
 	    mv $(pwd)/_dist /usr/local/lxd
 
+	    mkdir -p /usr/local/lxd/vendor/raft/.libs
+	    mv vendor/raft/.libs/*.so* /usr/local/lxd/vendor/raft/.libs
+
+	    mkdir -p /usr/local/lxd/vendor/dqlite/.libs
+	    mv vendor/dqlite/.libs/*.so* /usr/local/lxd/vendor/dqlite/.libs
+
 	    # Add dynamic libraries to the lxd binary rpath.
-	    patchelf --set-rpath "\$ORIGIN/../deps/raft/.libs:\$ORIGIN/../deps/dqlite/.libs" /usr/local/lxd/bin/lxd
+	    patchelf --set-rpath "\$ORIGIN/../vendor/raft/.libs:\$ORIGIN/../vendor/dqlite/.libs" /usr/local/lxd/bin/lxd
+	    patchelf --set-rpath "\$ORIGIN/../vendor/raft/.libs:\$ORIGIN/../vendor/dqlite/.libs" /usr/local/lxd/bin/lxc-to-lxd
+	    patchelf --set-rpath "\$ORIGIN/../../raft/.libs" /usr/local/lxd/vendor/dqlite/.libs/libdqlite.so.0
 
 	    rm -Rf /usr/local/go
 	'
@@ -709,7 +717,7 @@ function prepare_archive_bits {
 	cp "$root/initrd.img" "$image/initrd"
 
 	cat <<EOF >"$scratch/grub.cfg"
-search --set=root --file /JOYENT_DEBIAN_LIVE
+search --set=root --file /TRITON_DEBIAN_LIVE
 
 insmod all_video
 
@@ -721,21 +729,21 @@ terminal_input --append serial
 terminal_output --append serial
 
 menuentry "Triton Debian Live $release without DHCP ttyS0" {
-    linux /vmlinuz boot=live console=tty0 console=ttyS1
+    linux /vmlinuz boot=live console=tty0 console=ttyS1 systemd.unified_cgroup_hierarchy=0
     initrd /initrd
 }
 
 menuentry "Triton Debian Live $release with default networking" {
-    linux /vmlinuz boot=live console=tty0 console=ttyS1 triton.dhcp-all-nics
+    linux /vmlinuz boot=live console=tty0 console=ttyS1 triton.dhcp-all-nics systemd.unified_cgroup_hierarchy=0
     initrd /initrd
 }
 
 menuentry "Triton Debian Live $release without DHCP" {
-    linux /vmlinuz boot=live
+    linux /vmlinuz boot=live systemd.unified_cgroup_hierarchy=0
     initrd /initrd
 }
 EOF
-	echo "$release" > "$image/JOYENT_DEBIAN_LIVE"
+	echo "$release" > "$image/TRITON_DEBIAN_LIVE"
 }
 
 function create_tgz {
@@ -800,17 +808,17 @@ function create_iso {
 	    "$scratch/bios.img"
 
 	xorriso -as mkisofs -iso-level 3 -full-iso9660-filenames \
-	    -volid "JOYENT_DEBIAN_LIVE" -eltorito-boot boot/grub/bios.img \
+	    -volid "TRITON_DEBIAN_LIVE" -eltorito-boot boot/grub/bios.img \
 	    -no-emul-boot -boot-load-size 4 -boot-info-table \
 	    --eltorito-catalog boot/grub/boot.cat --grub2-boot-info \
 	    --grub2-mbr /usr/lib/grub/i386-pc/boot_hybrid.img \
 	    -eltorito-alt-boot -e EFI/efiboot.img -no-emul-boot \
 	    -append_partition 2 0xef "$scratch/efiboot.img" \
-	    -output "$top/joyent-debian_live-$release.iso" \
+	    -output "$top/triton-debian_live-$release.iso" \
 	    -graft-points "$image" /boot/grub/bios.img="$scratch/bios.img" \
 	    /EFI/efiboot.img="$scratch/efiboot.img"
 
-	    ln -f -s "${top}/joyent-debian_live-$release.iso" "$top/../joyent-debian_live-latest.iso"
+	    ln -f -s "${top}/triton-debian_live-$release.iso" "$top/../triton-debian_live-latest.iso"
 }
 
 # Creates a USB disk that should be bootable with BIOS or UEFI. The partition
@@ -832,7 +840,7 @@ function create_usb {
 	local image_mnt=$scratch/mnt/image
 	local total_sec=$(( image_start + image_sec ))
 	local disk_mb=$(( total_sec / 2 / 1024 + 1 ))
-	local disk_file=$scratch/joyent-debian_live-$release.usb
+	local disk_file=$scratch/triton-debian_live-$release.usb
 
 	truncate -s "$disk_mb"M "$disk_file"
 
@@ -906,9 +914,9 @@ function create_usb {
 	umount "$image_mnt"
 	umount "$esp_mnt"
 
-	rm -f "$top/joyent-debian_live-$release.usb.gz"
-	pigz -c "$disk_file" > "$top/joyent-debian_live-$release.usb.gz"
-	ln -f -s "${top}/joyent-debian_live-$release.usb.gz" "$top/../joyent-debian_live-latest.usb.gz"
+	rm -f "$top/triton-debian_live-$release.usb.gz"
+	pigz -c "$disk_file" > "$top/triton-debian_live-$release.usb.gz"
+	ln -f -s "${top}/triton-debian_live-$release.usb.gz" "$top/../triton-debian_live-latest.usb.gz"
 
 }
 
@@ -1094,7 +1102,7 @@ motd_alt=$'
 
 motd=$'
             *--+--*--*
-           /| /| /| /|    J O Y E N T
+           /| /| /| /|
           / |/ |/ |/ |    #####  ####   #  #####  ###   #   # TM
          +--*--+--*--*      #    #   #  #    #   #   #  ##  #
          | /| /| /| /|      #    ####   #    #   #   #  # # #

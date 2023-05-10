@@ -6,7 +6,7 @@
 
 <!--
     Copyright 2021 Joyent, Inc.
-    Copyright 2022 MNX Cloud, Inc.
+    Copyright 2023 MNX Cloud, Inc.
 -->
 
 # Triton Datacenter Linux CN Quick Start Guide
@@ -27,7 +27,7 @@ There will most likely be breaking changes with little to no warning.
    [Triton Maintenance and Upgrades][triton-upgrade] documentation.
 2. Update `imgapi` to the latest `dev` image.
 
-        sdcadm update -C dev imgapi --latest
+        sdcadm update -C dev imgapi
 
 ## Obtaining Linux Platform Images
 
@@ -63,7 +63,7 @@ Make sure you are sure!!
 3. Issue the `sdc-factoryreset` command
 4. After the server reboots, power it off. This can be done with IPMI if you
    have that available.
-5. Delete the server from CNAPI. First make note of the CN UUID, then delte it
+5. Delete the server from CNAPI. First make note of the CN UUID, then delete it
 
         sdc-server delete <CN UUID>
 
@@ -80,9 +80,13 @@ Make sure you are sure!!
 
 1. Boot the CN. It will boot to the default platform image, which will most
    likely be SmartOS.
-2. Assign a Linux platform, and reboot it
+2. Assign a Linux platform, set kernel args, and reboot:
 
         sdcadm platform assign <platform> <CN UUID>
+
+        sdc-cnapi /boot/<CN UUID> -X PUT -d \
+            '{"kernel_args": {"systemd.unified_cgroup_hierarchy": "0"}}'
+
         sdc-oneachnode -n <CN UUID> 'exit 113'
 
 3. The CN will now boot to the designated platform image.
