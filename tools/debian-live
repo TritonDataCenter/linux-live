@@ -91,6 +91,7 @@ packages+=(
     sysstat
     tcpdump
     vim
+    sharutils
 )
 
 # Agents build relies on uuid.
