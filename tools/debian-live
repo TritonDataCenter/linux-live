@@ -260,7 +260,7 @@ function install_live {
 	chroot "$root" tee /etc/apt/preferences.d/90_zfs >/dev/null <<-EOF
 	# https://github.com/zfsonlinux/zfs/wiki/Debian#installation
 	Package: libnvpair1linux libuutil1linux libzfs2linux libzpool2linux spl-dkms zfs-dkms zfs-test zfsutils-linux zfsutils-linux-dev zfs-zed
-	Pin: release n=buster-backports
+	Pin: release n=bullseye-backports
 	Pin-Priority: 990
 	EOF
 
@@ -373,7 +373,7 @@ function install_usr_triton {
 
 	    # Symlink lib/node to ensure global node_modules is on the require path.
 	    # XXX - why is this node_modules not already on the nodejs require path?
-	    # This is a long explanation. Can do some reading on node docs for details:
+	    # This is a long explanation. Can do some reading on node docs for details:
 	    # https://nodejs.org/api/modules.html#modules_loading_from_the_global_folders
 	    # Note we should be doing this instead where a global module is required:
 	    # export NODE_PATH=/usr/lib/node_modules
@@ -447,7 +447,7 @@ function install_usr_triton_cn_agent {
 	    set -xeuo pipefail
 	    export LC_ALL=C
 
-	    git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/TritonDataCenter/sdc-cn-agent cn-agent
+	    git -C /usr/triton/defaults/agents clone -b LINUXCN-19 https://github.com/TritonDataCenter/sdc-cn-agent cn-agent
 	    cd /usr/triton/defaults/agents/cn-agent
 	    rm -f package-lock.json
 	    npm install --production --ignore-scripts
@@ -600,7 +600,7 @@ function install_lxd {
 	curl -L https://golang.org/dl/go${golang_ver}.linux-amd64.tar.gz |
 	    chroot "$root" tar -C /usr/local --no-same-owner -xzf -
 	LXD_RELEASE=lxd-$lxd_ver
-	curl -L https://github.com/lxc/lxd/releases/download/$LXD_RELEASE/$LXD_RELEASE.tar.gz |
+	curl -L https://github.com/canonical/lxd/releases/download/$LXD_RELEASE/$LXD_RELEASE.tar.gz |
 	    chroot "$root" tar -C /tmp --no-same-owner -xzf -
 	# shellcheck disable=2016
 	chroot "$root" env lxd_ver=$lxd_ver bash -c '
@@ -1092,15 +1092,6 @@ scratch=$top/scratch
 mkdir -p "$scratch"
 repo=$(git rev-parse --show-toplevel)
 
-motd_alt=$'
-   __        .                   .
- _|  |_      | .-. .  . .-. :--. |-
-|_    _|     ;|   ||  |(.-\' |  | |
-  |__|   `--\'  `-\' `;-| `-\' \'  \' `-\'
-                   /  ;  Platform ('"$name"' '"$release"$')
-                   `-\'   '"$docurl"'
-'
-
 motd=$'
             *--+--*--*
            /| /| /| /|
@@ -1114,8 +1105,6 @@ motd=$'
          *--*--+--*         build: '"$release"'
 
 '
-
-: "$motd_alt"
 
 commit=$(cd "$(dirname "$0")" && git rev-parse HEAD)
 product="
