@@ -3,7 +3,7 @@
 This repo is used to build the Triton Datacenter Linux platform image. This is
 not a standalone product and is intended to be used with Triton Datacenter.
 
-**THIS IS A TECHNOLOGY PREVIEW.** Not everythign works as expected yet. But you
+**THIS IS A TECHNOLOGY PREVIEW.** Not everything works as expected yet. But you
 (yes, you!) can help shape the direction of the product by getting involved.
 
 Detailed documentation can be found in the [docs](docs) directory. Some of this

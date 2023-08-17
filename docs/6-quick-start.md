@@ -42,7 +42,7 @@ up to date as possible with Linux CN images. Things can move pretty fast.
 
         mkdir /var/tmp/linuxcn
         cd /var/tmp/linuxcn
-        curl -OC - https://us-central.manta.mnx.io/Joyent_Dev/public/TritonDCLinux/20210731T223008Z/platform-20210731T223008Z.tgz
+        curl -OC - https://us-central.manta.mnx.io/Joyent_Dev/public/TritonDCLinux/20230609T214426Z/platform-20230609T214426Z.tgz
 
 3. Install the image
 
