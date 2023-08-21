@@ -46,7 +46,7 @@ up to date as possible with Linux CN images. Things can move pretty fast.
 
 3. Install the image
 
-        sdcadm platform install ./platform-20210731T223008Z.tgz
+        sdcadm platform install ./platform-20230609T214426Z.tgz
 
 ## Compute Node Setup
 
