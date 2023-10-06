@@ -80,13 +80,9 @@ Make sure you are sure!!
 
 1. Boot the CN. It will boot to the default platform image, which will most
    likely be SmartOS.
-2. Assign a Linux platform, set kernel args, and reboot:
+2. Assign a Linux platform, and reboot it
 
         sdcadm platform assign <platform> <CN UUID>
-
-        sdc-cnapi /boot/<CN UUID> -X PUT -d \
-            '{"kernel_args": {"systemd.unified_cgroup_hierarchy": "0"}}'
-
         sdc-oneachnode -n <CN UUID> 'exit 113'
 
 3. The CN will now boot to the designated platform image.
