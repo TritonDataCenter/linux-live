@@ -57,7 +57,7 @@ golang_ver=1.18.10
 go_distfile="https://golang.org/dl/go${golang_ver}.linux-${arch}.tar.gz"
 
 # https://github.com/openzfs/zfs/releases
-zfs_ver=2.2.0
+zfs_ver=2.2.1
 zfs_distfile="https://github.com/openzfs/zfs/releases/download/zfs-${zfs_ver}/zfs-${zfs_ver}.tar.gz"
 
 # Last Python 2 version released (needed for node-gyp)
@@ -1067,6 +1067,16 @@ function create_usb {
 
 }
 
+function finished {
+	echo "Finished building release: $release"
+	echo "Files:"
+	for f in "$top/platform-$release.tgz" \
+	    "$top/triton-debian_live-$release.iso" \
+	    "$top/triton-debian_live-$release.usb.gz"; do
+		echo "  - $f ($(stat -c '%s' "$f" | numfmt --to=iec))"
+	done
+}
+
 function run {
 	local step=$1
 	local isFirstStep=$2
@@ -1161,6 +1171,7 @@ if [[ "$arch" == "amd64" ]]; then
 		create_tgz
 		create_iso
 		create_usb
+		finished
 	)
 fi
 
