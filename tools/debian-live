@@ -57,7 +57,7 @@ golang_ver=1.18.10
 go_distfile="https://golang.org/dl/go${golang_ver}.linux-${arch}.tar.gz"
 
 # https://github.com/openzfs/zfs/releases
-zfs_ver=2.2.1
+zfs_ver=2.2.2
 zfs_distfile="https://github.com/openzfs/zfs/releases/download/zfs-${zfs_ver}/zfs-${zfs_ver}.tar.gz"
 
 # Last Python 2 version released (needed for node-gyp)
