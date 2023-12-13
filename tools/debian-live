@@ -17,6 +17,10 @@
 # making this problem easily approachable.
 #
 
+ROOT=$(cd "$(dirname "$0")"/../; pwd)
+
+. "${ROOT}/proto/usr/triton/lib/trace_logger.sh"
+
 export PATH=/bin:/usr/bin:/usr/sbin
 
 PS4='${FUNCNAME:-debian-live}: '
@@ -792,6 +796,9 @@ function postinstall {
 		echo debian-live-$release >/etc/hostname
 		echo "TRITON_RELEASE=\"$release\"" >> /etc/os-release
 
+		# systemd-resolved is installed here as doing it in the install_packages
+		# step along with other $packages causes DNS resolution to fail in the
+		# chroot
 		apt-get install -y systemd-resolved
 		sed -i -e "s/^#DNSSEC=.*/DNSSEC=false/" /etc/systemd/resolved.conf
 
