@@ -847,7 +847,7 @@ function postinstall {
 
 		# Not needed in the PI
 		rm -rf /usr/node/bin/{npm,npx,corepack} \
-			/usr/node/lib/node_modules/{npm,corepack} \
+			/usr/node/lib/node_modules/{npm,npx,corepack} \
 			/usr/node/include
 
 		passwd -d root
