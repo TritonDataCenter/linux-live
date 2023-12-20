@@ -69,7 +69,10 @@ python_ver=2.7.18
 python_distfile="https://www.python.org/ftp/python/${python_ver}/Python-${python_ver}.tgz"
 
 # Will be downloaded from nodejs.org
-node_ver=14.21.3
+node_major=14
+node_minor=21
+node_patch=3
+node_ver="${node_major}.${node_minor}.${node_patch}"
 
 # From https://willhaley.com/blog/custom-debian-live-environment/
 packages=(live-boot systemd-sysv)
@@ -468,6 +471,19 @@ function install_nodejs {
 	mkdir -p "$root/usr/node"
 	chroot "$root" tar -C /usr/node --no-same-owner --strip-components=1 -xzf -\
 	    < "$distfiles/$node_tarball"
+
+	# To the extent possible, replicate the SmartOS layout for Node. This is
+	# done in the event we need multiple versions of Node in the PI
+	chroot "$root" env NODE_MAJOR_MINOR="${node_major}.${node_minor}" bash -c '
+		cd /usr/node
+		rm -rf CHANGELOG.md LICENSE README.md share
+		mkdir -p "$NODE_MAJOR_MINOR/bin"
+
+		for i in bin/node include lib; do
+			mv "$i" "$NODE_MAJOR_MINOR/$i"
+			ln -s "/usr/node/$NODE_MAJOR_MINOR/$i" "/usr/node/$i"
+		done
+	'
 }
 
 # As much as possible, bits that are needed to support Triton will appear in
@@ -828,6 +844,11 @@ function postinstall {
 			# regardless of where we get mounted.
 			ln -s "/.var/lib/$dir" "/var/lib/$dir"
 		done
+
+		# Not needed in the PI
+		rm -rf /usr/node/bin/{npm,npx,corepack} \
+			/usr/node/lib/node_modules/{npm,corepack} \
+			/usr/node/include
 
 		passwd -d root
 
