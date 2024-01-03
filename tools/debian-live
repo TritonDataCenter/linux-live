@@ -8,7 +8,7 @@
 
 #
 # Copyright 2021 Joyent, Inc.
-# Copyright 2023 MNX Cloud, Inc.
+# Copyright 2024 MNX Cloud, Inc.
 #
 
 #
@@ -46,7 +46,7 @@ docurl=https://github.com/TritonDataCenter/linux-live
 arch=$(dpkg --print-architecture)
 machine=$(uname -m)
 
-kernel_version=6.1.0-13
+kernel_version=6.1.69-1
 
 # Currently keeping this up with the latest version in pkgsrc bootstrap kits
 # https://us-central.manta.mnx.io/pkgsrc/public/pkg-bootstraps/index.html
@@ -323,8 +323,8 @@ function install_live {
 function install_kernel_packages {
 	chroot "$root" env DEBIAN_FRONTEND=noninteractive LC_ALL=C \
 	    apt install "${apt_args[@]}" \
-	    "linux-image-${kernel_version}-${arch}" \
-	    "linux-headers-${kernel_version}-${arch}"
+	    "linux-image-${arch}=${kernel_version}" \
+	    "linux-headers-${arch}=${kernel_version}"
 }
 
 # Install system packages.
@@ -1097,6 +1097,13 @@ function create_usb {
 
 function finished {
 	echo "Finished building release: $release"
+
+	printf "Debian version: ${debver} "
+	chroot "$root" cat /etc/debian_version
+
+	printf "Kernel version: "
+	chroot "$root" uname -vr
+
 	echo "Files:"
 	for f in "$top/platform-$release.tgz" \
 	    "$top/triton-debian_live-$release.iso" \
