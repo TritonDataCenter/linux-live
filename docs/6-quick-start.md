@@ -6,7 +6,7 @@
 
 <!--
     Copyright 2021 Joyent, Inc.
-    Copyright 2022 MNX Cloud, Inc.
+    Copyright 2023 MNX Cloud, Inc.
 -->
 
 # Triton Datacenter Linux CN Quick Start Guide
@@ -27,7 +27,7 @@ There will most likely be breaking changes with little to no warning.
    [Triton Maintenance and Upgrades][triton-upgrade] documentation.
 2. Update `imgapi` to the latest `dev` image.
 
-        sdcadm update -C dev imgapi --latest
+        sdcadm update -C dev imgapi
 
 ## Obtaining Linux Platform Images
 
@@ -63,7 +63,7 @@ Make sure you are sure!!
 3. Issue the `sdc-factoryreset` command
 4. After the server reboots, power it off. This can be done with IPMI if you
    have that available.
-5. Delete the server from CNAPI. First make note of the CN UUID, then delte it
+5. Delete the server from CNAPI. First make note of the CN UUID, then delete it
 
         sdc-server delete <CN UUID>
 

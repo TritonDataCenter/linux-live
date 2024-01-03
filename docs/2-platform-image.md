@@ -6,7 +6,7 @@
 
 <!--
     Copyright 2020 Joyent, Inc.
-    Copyright 2022 MNX Cloud, Inc.
+    Copyright 2023 MNX Cloud, Inc.
 -->
 
 # Platform Image
@@ -20,13 +20,14 @@ The platform image is based on Debian utilizing ZFS on Linux.
 
 ### TLDR
 
-1. Install [Debian 10 64-bit](https://www.debian.org/CD/http-ftp/) on a machine
+1. Install [Debian 12 64-bit](https://www.debian.org/CD/http-ftp/) on a machine
    (e.g. in VMware)
 2. Install [ZFS](#install-zfs)
 3. Create a zpool (warning - this will destroy the disk partition), e.g.
 
     ```bash
-    zpool create data /dev/sdb
+    sudo zpool create data /dev/sdb
+    sudo zfs create data/debian-live
     sudo touch /data/.system_pool
     ```
 
@@ -377,11 +378,12 @@ Once you have a Debian instance with ZFS, perform the following steps.
 
 #### Create a zpool
 
-For now, the image creation script assumes that there is a pool named `triton`
-where it can create images.
+For now, the image creation script assumes that there is a pool named `data`
+and a dataset named `debian-live` where it can create images.
 
 ```bash
 sudo zpool create data /dev/vdb
+sudo zfs create data/debian-live
 ```
 
 If you will be developing and testing agents on this box, you probably want to

@@ -8,7 +8,7 @@
 
 #
 # Copyright 2021 Joyent, Inc.
-# Copyright 2022 MNX Cloud, Inc.
+# Copyright 2024 MNX Cloud, Inc.
 #
 
 #
@@ -17,11 +17,14 @@
 # making this problem easily approachable.
 #
 
+ROOT=$(cd "$(dirname "$0")"/../; pwd)
+
+. "${ROOT}/proto/usr/triton/lib/trace_logger.sh"
+
 export PATH=/bin:/usr/bin:/usr/sbin
 
 PS4='${FUNCNAME:-debian-live}: '
 set -euo pipefail
-set -o xtrace
 
 # Unset some environment variables that can mess with chroot npm install.
 unset SUDO_COMMAND
@@ -35,16 +38,41 @@ if [[ -f ~/.cargo/env ]]; then
 	source ~/.cargo/env
 fi
 
-debver=buster
-name="Debian 10"
+debver=bookworm
+name="Debian 12"
 docurl=https://github.com/TritonDataCenter/linux-live
 
-golang_ver=1.15.6
-rust_version=1.52.0
+# Assuming the host and target are the same arch for now
+arch=$(dpkg --print-architecture)
+machine=$(uname -m)
 
-kernel_version=5.10.0-0.bpo.15
-lxd_ver=4.0.6
-zfs_ver=2.0.4
+kernel_version=6.1.69-1
+
+# Currently keeping this up with the latest version in pkgsrc bootstrap kits
+# https://us-central.manta.mnx.io/pkgsrc/public/pkg-bootstraps/index.html
+rust_version=1.73.0
+
+# $MAJOR.0.$PATCH are LTS releases for LXD
+lxd_ver=5.0.1
+lxd_distfile="https://github.com/canonical/lxd/releases/download/lxd-${lxd_ver}/lxd-${lxd_ver}.tar.gz"
+
+# LXD >= 5 requires go >= 1.18
+golang_ver=1.18.10
+go_distfile="https://golang.org/dl/go${golang_ver}.linux-${arch}.tar.gz"
+
+# https://github.com/openzfs/zfs/releases
+zfs_ver=2.2.2
+zfs_distfile="https://github.com/openzfs/zfs/releases/download/zfs-${zfs_ver}/zfs-${zfs_ver}.tar.gz"
+
+# Last Python 2 version released (needed for node-gyp)
+python_ver=2.7.18
+python_distfile="https://www.python.org/ftp/python/${python_ver}/Python-${python_ver}.tgz"
+
+# Will be downloaded from nodejs.org
+node_major=14
+node_minor=21
+node_patch=3
+node_ver="${node_major}.${node_minor}.${node_patch}"
 
 # From https://willhaley.com/blog/custom-debian-live-environment/
 packages=(live-boot systemd-sysv)
@@ -73,13 +101,13 @@ packages+=(
     lldpd
     lshw
     lsof
-    man
+    man-db
     netcat-openbsd
     ntpdate
     openssh-server
     pciutils
     psmisc
-    python # needed for bpfcc-tools
+    python3 # needed for bpfcc-tools
     rsync
     screen
     socat
@@ -93,13 +121,10 @@ packages+=(
 # Agents build relies on uuid.
 packages+=(uuid)
 
-# NodeJS
-packages+=(nodejs)
-
 # required by lxd:
 packages+=(iptables apparmor apparmor-profiles apparmor-utils liblxc1 lxc lxcfs
-    acl autoconf dnsmasq-base git libtool rsync pkg-config make tar tcl libuv1
-    squashfs-tools xz-utils ebtables lvm2 thin-provisioning-tools btrfs-tools
+    acl dnsmasq-base git rsync tar tcl libuv1 squashfs-tools xz-utils
+    ebtables lvm2 thin-provisioning-tools btrfs-progs attr
 )
 
 # These packages are here to aid in building the image - they are installed
@@ -107,11 +132,12 @@ packages+=(iptables apparmor apparmor-profiles apparmor-utils liblxc1 lxc lxcfs
 temp_build_packages=(gawk alien libblkid-dev uuid-dev libudev-dev libssl-dev
     zlib1g-dev libaio-dev libattr1-dev libelf-dev python3-setuptools
     python3-cffi libffi-dev build-essential gdebi dpkg-dev fakeroot debhelper
-    dkms python3-dev
+    dkms python3-dev python3-distlib autoconf pkg-config make libtool
 )
 
 # packages required to build lxd
-temp_build_packages+=(libacl1-dev libcap-dev lxc-dev libuv1-dev patchelf)
+temp_build_packages+=(libacl1-dev libcap-dev lxc-dev libuv1-dev patchelf
+	liblz4-dev automake)
 
 # These are for the lxd test suite:
 temp_build_packages+=(libapparmor-dev libseccomp-dev libcap-dev gettext
@@ -151,6 +177,33 @@ function onfatal {
 	fi
 }
 
+
+# Download specified distfile if not already downloaded
+function fetch_distfile {
+	local url="$1"
+	local tarball
+	tarball=$(basename "$url")
+	local distfile="$distfiles/$tarball"
+
+	if [[ ! -e "$distfile" ]]; then
+		echo "Fetching distfile: $url"
+		curl -Lo "$distfile" "$url" || rm -f "$distfile"
+	fi
+}
+
+# Download and extract the specified distfile into /tmp or an optional path
+function fetch_extract_distfile {
+	local url="$1"
+	local dest="${2:-/tmp}"
+	local tarball
+	tarball=$(basename "$url")
+	local distfile="$distfiles/$tarball"
+
+	fetch_distfile "$url"
+
+	chroot "$root" tar -C "$dest" --no-same-owner -xzf - < "$distfiles/$tarball"
+}
+
 function unmount_children {
 	local dirs
 	mapfile -t dirs < <(mount | awk -v root="$root/" '
@@ -178,7 +231,6 @@ function preflight_check {
 		gdisk			# called by this script
 		git			# called by this script
 		grub-efi		# called by this script
-		grub-pc-bin		# for grub-mkstandalone
 		kpartx			# called by this script
 		zlib1g-dev		# to build src/sethostid
 		mtools			# mcopy called by this script
@@ -188,6 +240,12 @@ function preflight_check {
 		xorriso			# called by this script
 		pwgen			# called by this script
 	)
+
+	if [[ "$arch" == "amd64" ]]; then
+		packages+=(
+			grub-pc-bin	# for grub-mkstandalone
+		)
+	fi
 
 	local missing=() status
 	local missing_rust=true
@@ -200,6 +258,16 @@ function preflight_check {
 	done
 	if command -v rustc && command -v cargo ; then
 		missing_rust=false
+		rust_current_version="$(rustc -vV | grep release | awk '{print $2}')"
+		if [[ "$rust_current_version" != "$rust_version" ]]; then
+			exec 1>&2
+			echo "Expected Rust version: $rust_version"
+			echo "Found Rust version: $rust_current_version"
+			echo "To fix, run:"
+			echo "    rustup toolchain install $rust_version"
+			echo "    rustup default $rust_version"
+			exit 1
+		fi
 	fi
 	if (( ${#missing[@]} == 0 )) && [[ "$missing_rust" == "false" ]]; then
 		return 0
@@ -211,7 +279,7 @@ function preflight_check {
 			curl --proto '=https' --tlsv1.2 -sSf \
 				https://sh.rustup.rs | \
 				sh -s -- -q -y --profile minimal \
-				--default-host x86_64-unknown-linux-gnu \
+				--default-host "${machine}-unknown-linux-gnu" \
 				--default-toolchain "$rust_version"
 		fi
 		return 0
@@ -228,64 +296,48 @@ function preflight_check {
 }
 
 function create_bootstrap {
-	debootstrap --arch=amd64 --variant=minbase "$debver" "$root" \
+	cachedir="$cache/debootstrap/$debver/$arch"
+	mkdir -p "$cachedir"
+	debootstrap --verbose --arch="$arch" --variant=minbase \
+	    --cache-dir="$cachedir" "$debver" "$root" \
 	    http://ftp.us.debian.org/debian/
 }
 
 function install_live {
+
 	chroot "$root" tee /etc/apt/sources.list >/dev/null <<-EOF
-	deb http://deb.debian.org/debian/ $debver main
-	deb-src http://deb.debian.org/debian/ $debver main
+	deb http://deb.debian.org/debian/ $debver main contrib
+	deb-src http://deb.debian.org/debian/ $debver main contrib
 
-	deb http://security.debian.org/debian-security $debver/updates main
-	deb-src http://security.debian.org/debian-security $debver/updates main
+	deb http://security.debian.org/debian-security ${debver}-security main contrib
+	deb-src http://security.debian.org/debian-security ${debver}-security main contrib
 
-	deb http://deb.debian.org/debian/ $debver-updates main
-	deb-src http://deb.debian.org/debian/ $debver-updates main
+	deb http://deb.debian.org/debian/ ${debver}-updates main contrib
+	deb-src http://deb.debian.org/debian/ ${debver}-updates main contrib
 	EOF
 
-	chroot "$root" tee /etc/apt/sources.list.d/$debver-backports.list \
-	    >/dev/null <<-EOF
-	# https://github.com/zfsonlinux/zfs/wiki/Debian#installation
-	deb http://deb.debian.org/debian $debver-backports main contrib
-	deb-src http://deb.debian.org/debian $debver-backports main contrib
-	EOF
-
-	chroot "$root" tee /etc/apt/preferences.d/90_zfs >/dev/null <<-EOF
-	# https://github.com/zfsonlinux/zfs/wiki/Debian#installation
-	Package: libnvpair1linux libuutil1linux libzfs2linux libzpool2linux spl-dkms zfs-dkms zfs-test zfsutils-linux zfsutils-linux-dev zfs-zed
-	Pin: release n=buster-backports
-	Pin-Priority: 990
-	EOF
-
-	curl -sL https://deb.nodesource.com/setup_14.x | chroot "$root" bash -
 	chroot "$root" apt update
 }
 
-# Install more recent kernel
+# Install specified kernel packages
 function install_kernel_packages {
-	# This installs the new kernel
-	chroot "$root" env DEBIAN_FRONTEND=noninteractive apt install \
-	    "${apt_args[@]}" \
-	    "linux-image-${kernel_version}-amd64" \
-	    "linux-headers-${kernel_version}-amd64"
-
-	# This removes the old kernel
-	chroot "$root" env DEBIAN_FRONTEND=noninteractive apt-get remove \
-	    "linux-image-4*" "linux-headers-4*" "linux-kbuild-4*"
+	chroot "$root" env DEBIAN_FRONTEND=noninteractive LC_ALL=C \
+	    apt install "${apt_args[@]}" \
+	    "linux-image-${arch}=${kernel_version}" \
+	    "linux-headers-${arch}=${kernel_version}"
 }
 
 # Install system packages.
 function install_packages {
-	chroot "$root" env DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade \
-	    "${apt_args[@]}"
-	chroot "$root" env DEBIAN_FRONTEND=noninteractive apt install \
+	chroot "$root" env DEBIAN_FRONTEND=noninteractive LC_ALL=C apt-get \
+	    dist-upgrade "${apt_args[@]}"
+	chroot "$root" env DEBIAN_FRONTEND=noninteractive LC_ALL=C apt install \
 	    "${apt_args[@]}" "${packages[@]}"
 }
 
 # Install temporary packages.
 function install_temporary_packages {
-	chroot "$root" env DEBIAN_FRONTEND=noninteractive apt install \
+	chroot "$root" env DEBIAN_FRONTEND=noninteractive LC_ALL=C apt install \
 	    "${apt_args[@]}" "${temp_build_packages[@]}"
 }
 
@@ -294,42 +346,59 @@ function install_temporary_packages {
 # everything else. Once we have Linux as a platform it should be easier to run
 # things like a build farm and repo.
 function build_zfs {
+	fetch_extract_distfile "$zfs_distfile"
+	zfs_built_pkgs="$buildcache/zfs-${zfs_ver}/all-packages.tar"
+
+	# If ZFS packages have already been built for the desired version extract
+	# and install those packages instead of rebuilding
+	if [[ -f "$zfs_built_pkgs" ]]; then
+		mkdir -p "$root/tmp/zfs-${zfs_ver}"
+		cp "$zfs_built_pkgs" "$root/tmp/zfs-${zfs_ver}"
+		tar -xf "$root/tmp/zfs-${zfs_ver}/all-packages.tar" -C \
+			"$root/tmp/zfs-${zfs_ver}"
+		chroot "$root" env ZFS_VER="$zfs_ver" LC_ALL=C bash -c '
+			cd /tmp/zfs-${ZFS_VER}
+			for file in *.deb; do gdebi -q --non-interactive $file; done
+			rm -rf /tmp/zfs-${ZFS_VER}
+		'
+		return 0
+	fi
+
 	# shellcheck disable=1004 disable=2016
-	chroot "$root" env zfs_ver=$zfs_ver bash -c '
+	chroot "$root" env ZFS_VER="$zfs_ver" ARCH="$arch" bash -c '
 	    PS4="BUILD_ZFS: "
 	    set -xeuo pipefail
 
 	    export DEBIAN_FRONTEND=noninteractive
 	    export LC_ALL=C
 
-	    rm -rf zfs
-	    git clone -b zfs-$zfs_ver https://github.com/zfsonlinux/zfs.git
-	    cd zfs
+	    cd /tmp/zfs-${ZFS_VER}
 	    ./autogen.sh
 	    ./configure --with-linux=$(echo /usr/src/linux-headers-*-common) \
-	        --with-linux-obj=$(echo /usr/src/linux-headers-*-amd64) \
+	        --with-linux-obj=$(echo /usr/src/linux-headers-*-${ARCH})
 	'
 
 	clean+=(unmount_children)
 	mount -t proc proc "$root/proc"
 	# shellcheck disable=2016
-	chroot "$root" bash -c '
+	chroot "$root" env ZFS_VER="$zfs_ver" bash -c '
 	    PS4="BUILD_ZFS: "
 	    set -xeuo pipefail
 
-	    cd zfs
+	    export LC_ALL=C
+
+	    cd /tmp/zfs-${ZFS_VER}
 	    make -j1 pkg-utils deb-kmod
 	    tar cvf /all-packages.tar *.deb
 	    rm kmod-zfs-devel*.deb zfs-test*.deb
 	    tar cvf /packages.tar *.deb
 	    for file in *.deb; do gdebi -q --non-interactive $file; done
-	    cd ..
-	    rm -rf zfs
+	    rm -rf /tmp/zfs-${ZFS_VER}
 	'
 	umount "$root/proc"
 
-	mv "$root/all-packages.tar" "$root/packages.tar" "$scratch"
-
+	mkdir -p "$buildcache/zfs-${zfs_ver}"
+	mv "$root/all-packages.tar" "$zfs_built_pkgs"
 }
 
 # In the previous "apt install" we built the ZFS kernel modules and installed
@@ -337,7 +406,7 @@ function build_zfs {
 # (remove) the packages which are no longer needed.
 function remove_temporary_packages {
 	# shellcheck disable=2016
-	chroot "$root" env zfs_ver="$zfs_ver" pkgs="${temp_build_packages[*]}" \
+	chroot "$root" env pkgs="${temp_build_packages[*]}" \
 	    bash -c '
 		PS4="CLEAN_ZFS_DEV: "
 		set -xeuo pipefail
@@ -345,10 +414,75 @@ function remove_temporary_packages {
 		export DEBIAN_FRONTEND=noninteractive
 		export LC_ALL=C
 
-		apt remove -y $pkgs "kernel-headers-*"
+		apt remove -y $pkgs "linux-headers-*"
 		apt-get autoremove --purge -y
+	'
+}
 
-		rm -f /tmp/zfs-modules-*.deb
+# Build Python 2 for node-gyp
+#
+# Debian 12 has removed Python 2 but we need it for older versions of node-gyp
+# We'll use it during the npm install process and remove it after. It is not
+# present in the platform image.
+# See also: https://wiki.debian.org/Python/FAQ#Python_2_support
+function build_python2 {
+
+	fetch_extract_distfile "$python_distfile"
+
+	if [[ -d "$buildcache/Python-$python_ver" ]]; then
+		cp -a "$buildcache/Python-$python_ver" "$root/tmp"
+		chroot "$root" env PYTHON_VER="$python_ver" bash -c '
+			cd "/tmp/Python-$PYTHON_VER"
+			make install
+		'
+		return 0
+	fi
+
+	chroot "$root" env PYTHON_VER=$python_ver bash -c '
+		cd "/tmp/Python-$PYTHON_VER"
+		./configure
+		make install
+	'
+	cp -a "$root/tmp/Python-$python_ver" "$buildcache"
+}
+
+function remove_python2 {
+	# There is no uninstall target in the Makefile
+	rm -rf "$root/tmp/Python-$python_ver" \
+		"$root/usr/local/bin/python2" \
+		"$root/usr/local/lib/python2.7" \
+		"$root/usr/local/bin/smtpd.py" \
+		"$root/usr/local/bin/idle" \
+		"$root/usr/local/bin/pydoc" \
+		"$root/usr/local/bin/2to3" \
+		"$root/usr/local/share/man/man1/python2"
+}
+
+function install_nodejs {
+	case "$arch" in
+		amd64) node_arch=x64;;
+		arm64) node_arch=arm64;;
+	esac
+
+	local node_tarball="node-v${node_ver}-linux-${node_arch}.tar.gz"
+
+	fetch_distfile "https://nodejs.org/download/release/v$node_ver/$node_tarball"
+
+	mkdir -p "$root/usr/node"
+	chroot "$root" tar -C /usr/node --no-same-owner --strip-components=1 -xzf -\
+	    < "$distfiles/$node_tarball"
+
+	# To the extent possible, replicate the SmartOS layout for Node. This is
+	# done in the event we need multiple versions of Node in the PI
+	chroot "$root" env NODE_MAJOR_MINOR="${node_major}.${node_minor}" bash -c '
+		cd /usr/node
+		rm -rf CHANGELOG.md LICENSE README.md share
+		mkdir -p "$NODE_MAJOR_MINOR/bin"
+
+		for i in bin/node include lib; do
+			mv "$i" "$NODE_MAJOR_MINOR/$i"
+			ln -s "/usr/node/$NODE_MAJOR_MINOR/$i" "/usr/node/$i"
+		done
 	'
 }
 
@@ -357,27 +491,34 @@ function remove_temporary_packages {
 function install_usr_triton {
 	chroot "$root" mkdir -p /usr/triton/bin
 	chroot "$root" mkdir -p /usr/triton/defaults/agents
+
 	chroot "$root" bash -c '
 	    PS4="INSTALL_USR_TRITON: "
 	    set -xeuo pipefail
-	    export LC_ALL=C
+	    export PATH=/usr/node/bin:$PATH
+	    export PYTHON=/usr/local/bin/python2
 
 	    # Install common node modules.
-	    npm install --production -g manta json bunyan assert-plus yamljs
+	    npm_config_user=root npm install --omit=dev -g manta json bunyan q \
+	        assert-plus yamljs
 
-	    # Symlink lib/node to ensure global node_modules is on the require path.
-	    # XXX - why is this node_modules not already on the nodejs require path?
-	    # This is a long explanation. Can do some reading on node docs for details:
-	    # https://nodejs.org/api/modules.html#modules_loading_from_the_global_folders
-	    # Note we should be doing this instead where a global module is required:
-	    # export NODE_PATH=/usr/lib/node_modules
-	    cd /usr/lib && ln -s node_modules node
+	    # Global modules can exist in the following locations:
+	    #
+	    #  /usr/node/lib/node_modules:
+	    #    Global modules are installed here as this path is relative to the
+	    #    node binary.
+	    #
+	    #   /usr/node/lib/node:
+	    #       The prebuilt binaries also look here when resolving modules
+	    #
+	    #  /usr/node/node_modules:
+	    #    Triton helper scripts expect their modules at this path so a
+	    #    symlink is made from /usr/node/lib/node_modules
+	    #
+	    #  See also: https://nodejs.org/api/modules.html#all-together
 
-	    # A lot of triton node scripts use modules from /usr/node/node_modules,
-	    # so we keep that compatability (for mkzpool, disklayout and friends).
-	    mkdir -p /usr/node/bin
-	    ln -sf /usr/lib/node /usr/node/node_modules
-	    ln -sf /usr/bin/node /usr/node/bin/node
+	    ln -s /usr/node/lib/node_modules /usr/node/node_modules
+	    ln -s /usr/node/lib/node_modules /usr/node/lib/node
 	'
 }
 
@@ -399,24 +540,24 @@ function install_usr_triton_helper_scripts {
 	    # node-getopt
 	    git -C /usr/triton clone https://github.com/TritonDataCenter/node-getopt
 	    mv /usr/triton/node-getopt/lib/getopt.js \
-		/usr/lib/node_modules/
+	        /usr/node/node_modules
 	    rm -rf /usr/triton/node-getopt
 
 	    # node-zfs
 	    # Note: required for disklayout, mkzpool.
 	    git -C /usr/triton clone -b linuxcn https://github.com/TritonDataCenter/node-zfs
 	    mv /usr/triton/node-zfs/lib/*.js \
-		/usr/lib/node_modules/
+	        /usr/node/node_modules
 	    rm -rf /usr/triton/node-zfs
 
 	    # disklayout
 	    curl -sSL https://raw.githubusercontent.com/TritonDataCenter/smartos-live/linuxcn/src/disklayout.js > \
-		/usr/triton/bin/disklayout
+	        /usr/triton/bin/disklayout
 	    chmod 700 /usr/triton/bin/disklayout
 
 	    # mkzpool
 	    curl -sSL https://raw.githubusercontent.com/TritonDataCenter/smartos-live/linuxcn/src/mkzpool.js > \
-                /usr/triton/bin/mkzpool
+	        /usr/triton/bin/mkzpool
 	    chmod 700 /usr/triton/bin/mkzpool
 	'
 }
@@ -440,11 +581,19 @@ function install_usr_triton_cn_agent {
 	    PS4="INSTALL_USR_TRITON_CN_AGENT: "
 	    set -xeuo pipefail
 	    export LC_ALL=C
+	    export PATH=/usr/node/bin:$PATH
+	    export PYTHON=/usr/local/bin/python2
 
-	    git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/TritonDataCenter/sdc-cn-agent cn-agent
+	    git -C /usr/triton/defaults/agents clone -b linuxcn \
+	        https://github.com/TritonDataCenter/sdc-cn-agent cn-agent
 	    cd /usr/triton/defaults/agents/cn-agent
 	    rm -f package-lock.json
-	    npm install --production --ignore-scripts
+
+	    # pty.js fails to install successfully but it is currently only used by
+	    # the SmartOS cn-agent backend
+	    npm uninstall pty.js
+
+	    npm install --omit=dev
 	    # Install a fake image_uuid (remove when we have a proper build).
 	    uuid -v4 > image_uuid
 	'
@@ -455,11 +604,14 @@ function install_usr_triton_imgadm {
 	chroot "$root" bash -c '
         PS4="INSTALL_USR_TRITON_IMGADM: "
         set -xeuo pipefail
-        export LC_ALL=C
+	    export LC_ALL=C
+	    export PATH=/usr/node/bin:$PATH
+	    export PYTHON=/usr/local/bin/python2
 
-        git -C /usr/triton/defaults clone -b linuxcn https://github.com/TritonDataCenter/node-imgadm imgadm
+        git -C /usr/triton/defaults clone -b linuxcn \
+            https://github.com/TritonDataCenter/node-imgadm imgadm
         cd /usr/triton/defaults/imgadm
-        npm install --production
+        npm install --omit=dev
         # Install a fake image_uuid (remove when we have a proper build).
         uuid -v4 > image_uuid
 
@@ -469,96 +621,92 @@ function install_usr_triton_imgadm {
 	'
 }
 
-
 # Install config-agent and the dependencies (nice to have a build of this).
 function install_usr_triton_config_agent {
-	# git -C $scratch clone -b linuxcn https://github.com/TritonDataCenter/sdc-config-agent
-	# cd $scratch/sdc-config-agent && npm install
-	# cp -rp $scratch/sdc-config-agent $root/usr/triton/
-
 	chroot "$root" bash -c '
 	    PS4="INSTALL_USR_TRITON_CONFIG_AGENT: "
 	    set -xeuo pipefail
 	    export LC_ALL=C
+	    export PATH=/usr/node/bin:$PATH
+	    export PYTHON=/usr/local/bin/python2
 
-	    git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/TritonDataCenter/sdc-config-agent config-agent
+	    git -C /usr/triton/defaults/agents clone -b linuxcn \
+	        https://github.com/TritonDataCenter/sdc-config-agent config-agent
 	    cd /usr/triton/defaults/agents/config-agent
-	    rm -f package-lock.json
-	    npm install --production --ignore-scripts
+	    npm install --omit=dev
 	    # Install a fake image_uuid (remove when we have a proper build).
 	    uuid -v4 > image_uuid
 	'
 }
 
-
 # Install net-agent and the dependencies (nice to have a build of this).
 function install_usr_triton_net_agent {
-	# git -C $scratch clone -b linuxcn https://github.com/TritonDataCenter/sdc-net-agent
-	# cd $scratch/sdc-net-agent && npm install
-	# cp -rp $scratch/sdc-net-agent $root/usr/triton/
-
 	chroot "$root" bash -c '
 	    PS4="INSTALL_USR_TRITON_NET_AGENT: "
 	    set -xeuo pipefail
 	    export LC_ALL=C
+	    export PATH=/usr/node/bin:$PATH
+	    export PYTHON=/usr/local/bin/python2
 
 	    git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/TritonDataCenter/sdc-net-agent net-agent
 	    cd /usr/triton/defaults/agents/net-agent
 	    rm -f package-lock.json
-	    npm install --production --ignore-scripts
+	    npm install --omit=dev
 	    # Install a fake image_uuid (remove when we have a proper build).
 	    uuid -v4 > image_uuid
 	'
 }
 
-
 # Install vm-agent and the dependencies (nice to have a build of this).
 function install_usr_triton_vm_agent {
 	chroot "$root" bash -c '
-        PS4="INSTALL_USR_TRITON_VM_AGENT: "
-        set -xeuo pipefail
-        export LC_ALL=C
+	    PS4="INSTALL_USR_TRITON_VM_AGENT: "
+	    set -xeuo pipefail
+	    export LC_ALL=C
+	    export PATH=/usr/node/bin:$PATH
+	    export PYTHON=/usr/local/bin/python2
 
-        git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/TritonDataCenter/sdc-vm-agent vm-agent
-        cd /usr/triton/defaults/agents/vm-agent
-        npm install --production
-        # Install a fake image_uuid (remove when we have a proper build).
-        uuid -v4 > image_uuid
+	    git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/TritonDataCenter/sdc-vm-agent vm-agent
+	    cd /usr/triton/defaults/agents/vm-agent
+	    npm install --omit=dev
+	    # Install a fake image_uuid (remove when we have a proper build).
+	    uuid -v4 > image_uuid
 	'
 }
-
 
 # Install metadata agent and the dependencies (nice to have a build of this).
 function install_usr_triton_metadata {
 	chroot "$root" bash -c '
-        PS4="INSTALL_USR_TRITON_METADATA: "
-        set -xeuo pipefail
-        export LC_ALL=C
+	    PS4="INSTALL_USR_TRITON_METADATA: "
+	    set -xeuo pipefail
+	    export LC_ALL=C
+	    export PATH=/usr/node/bin:$PATH
+	    export PYTHON=/usr/local/bin/python2
 
-        git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/TritonDataCenter/triton-metadata metadata-agent
-        cd /usr/triton/defaults/agents/metadata-agent
-        npm install --production
-		# Install a fake image_uuid (remove when we have a proper build).
-		uuid -v4 > image_uuid
+	    git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/TritonDataCenter/triton-metadata metadata-agent
+	    cd /usr/triton/defaults/agents/metadata-agent
+	    npm install --omit=dev
+	    # Install a fake image_uuid (remove when we have a proper build).
+	    uuid -v4 > image_uuid
 	'
 }
-
 
 # Install vminfod and the dependencies (nice to have a build of this).
 function install_usr_triton_vminfod {
 	chroot "$root" bash -c '
-        PS4="INSTALL_USR_TRITON_VMINFOD: "
-        set -xeuo pipefail
-        export LC_ALL=C
+	    PS4="INSTALL_USR_TRITON_VMINFOD: "
+	    set -xeuo pipefail
+	    export LC_ALL=C
+	    export PATH=/usr/node/bin:$PATH
+	    export PYTHON=/usr/local/bin/python2
 
-        git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/TritonDataCenter/triton-vminfod vminfod-agent
-        cd /usr/triton/defaults/agents/vminfod-agent
-        npm install --production
-		# Install a fake image_uuid (remove when we have a proper build).
-		uuid -v4 > image_uuid
+	    git -C /usr/triton/defaults/agents clone -b linuxcn https://github.com/TritonDataCenter/triton-vminfod vminfod-agent
+	    cd /usr/triton/defaults/agents/vminfod-agent
+	    npm install --omit=dev
+	    # Install a fake image_uuid (remove when we have a proper build).
+	    uuid -v4 > image_uuid
 	'
 }
-
 
 function install_proto {
 	(cd "$repo/src" && make install)
@@ -580,6 +728,7 @@ function install_proto {
 	    PS4="INSTALL_PROTO: "
 	    set -xeuo pipefail
 	    export LC_ALL=C
+	    export PATH=/usr/node/bin:$PATH
 
 	    services=$(find /usr/lib/systemd -type f -name triton-\*.service |
 		awk -F/ "{print \$NF}")
@@ -592,46 +741,61 @@ function install_proto {
 		ln -s /usr/triton/bin/sysinfo /usr/bin/sysinfo
 	    fi
 	'
-
 }
 
 # Build and install LXC/LXD. Like ZFS, eventually this should be done
 # separtely and artifacts dropped into a repo so that we can install vi apt.
 function install_lxd {
-	curl -L https://golang.org/dl/go${golang_ver}.linux-amd64.tar.gz |
-	    chroot "$root" tar -C /usr/local --no-same-owner -xzf -
-	LXD_RELEASE=lxd-$lxd_ver
-	curl -L https://github.com/lxc/lxd/releases/download/$LXD_RELEASE/$LXD_RELEASE.tar.gz |
-	    chroot "$root" tar -C /tmp --no-same-owner -xzf -
+
+	fetch_extract_distfile "$lxd_distfile"
+
+	if [[ -d "$buildcache/lxd-$lxd_ver" ]]; then
+		mkdir -p "$root/usr/local/lxd"
+		cp -a "$buildcache/lxd-$lxd_ver/"* "$root/usr/local/lxd"
+		return 0
+	fi
+
+	fetch_extract_distfile "$go_distfile" /usr/local
+
 	# shellcheck disable=2016
-	chroot "$root" env lxd_ver=$lxd_ver bash -c '
+	chroot "$root" env LXD_RELEASE="/tmp/lxd-$lxd_ver" bash -c '
 	    PS4="BUILD_LXD: "
 	    set -xeuo pipefail
 
-	    export DEBIAN_FRONTEND=noninteractive
 	    export LC_ALL=C
-	    export LXD_RELEASE=/tmp/lxd-$lxd_ver
 	    export PATH=$PATH:/usr/local/go/bin
 
-	    cd $LXD_RELEASE
+	    cd "$LXD_RELEASE"
 	    export GOPATH=$(pwd)/_dist
 	    mkdir -p $GOPATH/bin
 	    export GOBIN=$GOPATH/bin
 
 	    make deps
-	    export CGO_CFLAGS="-I${GOPATH}/deps/sqlite/ -I${GOPATH}/deps/libco/ -I${GOPATH}/deps/raft/include/ -I${GOPATH}/deps/dqlite/include/"
-	    export CGO_LDFLAGS="-L${GOPATH}/deps/sqlite/.libs/ -L${GOPATH}/deps/libco/ -L${GOPATH}/deps/raft/.libs -L${GOPATH}/deps/dqlite/.libs/"
-	    export LD_LIBRARY_PATH="${GOPATH}/deps/sqlite/.libs/:${GOPATH}/deps/libco/:${GOPATH}/deps/raft/.libs/:${GOPATH}/deps/dqlite/.libs/"
-	    export CGO_LDFLAGS_ALLOW="-Wl,-wrap,pthread_create"
+
+	    export CGO_CFLAGS="-I${LXD_RELEASE}/vendor/raft/include/ -I${LXD_RELEASE}/vendor/dqlite/include/"
+	    export CGO_LDFLAGS="-L${LXD_RELEASE}/vendor/raft/.libs/ -L${LXD_RELEASE}/vendor/dqlite/.libs/"
+	    export LD_LIBRARY_PATH="${LXD_RELEASE}/vendor/raft/.libs/:${LXD_RELEASE}/vendor/dqlite/.libs/"
+	    export CGO_LDFLAGS_ALLOW="(-Wl,-wrap,pthread_create)|(-Wl,-z,now)"
 
 	    make
+
 	    mv $(pwd)/_dist /usr/local/lxd
 
-	    # Add dynamic libraries to the lxd binary rpath.
-	    patchelf --set-rpath "\$ORIGIN/../deps/raft/.libs:\$ORIGIN/../deps/dqlite/.libs" /usr/local/lxd/bin/lxd
+	    mkdir -p /usr/local/lxd/vendor/raft/.libs
+	    mv vendor/raft/.libs/*.so* /usr/local/lxd/vendor/raft/.libs
 
-	    rm -Rf /usr/local/go
+	    mkdir -p /usr/local/lxd/vendor/dqlite/.libs
+	    mv vendor/dqlite/.libs/*.so* /usr/local/lxd/vendor/dqlite/.libs
+
+	    # Add dynamic libraries to the lxd binary rpath.
+	    patchelf --set-rpath "\$ORIGIN/../vendor/raft/.libs:\$ORIGIN/../vendor/dqlite/.libs" /usr/local/lxd/bin/lxd
+	    patchelf --set-rpath "\$ORIGIN/../vendor/raft/.libs:\$ORIGIN/../vendor/dqlite/.libs" /usr/local/lxd/bin/lxc-to-lxd
+	    patchelf --set-rpath "\$ORIGIN/../../raft/.libs" /usr/local/lxd/vendor/dqlite/.libs/libdqlite.so.0
+
+	    rm -Rf /usr/local/go "$LXD_RELEASE"
 	'
+
+	cp -a "$root/usr/local/lxd" "$buildcache/lxd-$lxd_ver"
 }
 
 function postinstall {
@@ -641,20 +805,35 @@ function postinstall {
 	    relase="$release" \
 	    bash -c '
 		PS4="POSTINSTALL: "
+		export LC_ALL=C
+
 		set -xeuo pipefail
 
 		echo debian-live-$release >/etc/hostname
 		echo "TRITON_RELEASE=\"$release\"" >> /etc/os-release
 
+		# systemd-resolved is installed here as doing it in the install_packages
+		# step along with other $packages causes DNS resolution to fail in the
+		# chroot
+		apt-get install -y systemd-resolved
+		sed -i -e "s/^#DNSSEC=.*/DNSSEC=false/" /etc/systemd/resolved.conf
+
+		# This service will attempt to parse the ip parameter on the kernel
+		# command line and fail, it is not needed for Triton
+		rm -f /usr/lib/systemd/system/systemd-network-generator.service
+
 		# Clean up apt/dpkg, and relocate them so that they reflect
 		# the running PI, and not just whatever was there when the
 		# pool was created.
 		apt-get autoremove --purge -y
+
 		apt-get clean
 
 		rm -rf /var/lib/apt/lists/*
 		rm -rf /var/cache/*
 		rm -f /etc/machine-id /etc/hostid
+		rm -rf /tmp/*
+		rm -f /etc/apt/apt.conf.d/02aptcache
 
 		for dir in dpkg apt; do
 			# Make this explicitly in the root
@@ -665,6 +844,11 @@ function postinstall {
 			# regardless of where we get mounted.
 			ln -s "/.var/lib/$dir" "/var/lib/$dir"
 		done
+
+		# Not needed in the PI
+		rm -rf /usr/node/bin/{npm,npx,corepack} \
+			/usr/node/lib/node_modules/{npm,npx,corepack} \
+			/usr/node/include
 
 		passwd -d root
 
@@ -683,8 +867,6 @@ function postinstall {
 
 		rm -f /*.old
 
-		sed -i -e "s/^#DNSSEC=.*/DNSSEC=false/" /etc/systemd/resolved.conf
-
 		# The root home directory has nothing useful in it. Removing it
 		# makes it possible to have a dataset mounted on /root, thereby
 		# easily preserving SSH authorized_keys and such.
@@ -699,7 +881,7 @@ function postinstall {
 
 		depmod -a $(basename /lib/modules/*)
 		update-initramfs -u
-	    '
+	'
 }
 
 function prepare_archive_bits {
@@ -709,7 +891,7 @@ function prepare_archive_bits {
 	cp "$root/initrd.img" "$image/initrd"
 
 	cat <<EOF >"$scratch/grub.cfg"
-search --set=root --file /JOYENT_DEBIAN_LIVE
+search --set=root --file /TRITON_DEBIAN_LIVE
 
 insmod all_video
 
@@ -735,7 +917,7 @@ menuentry "Triton Debian Live $release without DHCP" {
     initrd /initrd
 }
 EOF
-	echo "$release" > "$image/JOYENT_DEBIAN_LIVE"
+	echo "$release" > "$image/TRITON_DEBIAN_LIVE"
 }
 
 function create_tgz {
@@ -800,17 +982,17 @@ function create_iso {
 	    "$scratch/bios.img"
 
 	xorriso -as mkisofs -iso-level 3 -full-iso9660-filenames \
-	    -volid "JOYENT_DEBIAN_LIVE" -eltorito-boot boot/grub/bios.img \
+	    -volid "TRITON_DEBIAN_LIVE" -eltorito-boot boot/grub/bios.img \
 	    -no-emul-boot -boot-load-size 4 -boot-info-table \
 	    --eltorito-catalog boot/grub/boot.cat --grub2-boot-info \
 	    --grub2-mbr /usr/lib/grub/i386-pc/boot_hybrid.img \
 	    -eltorito-alt-boot -e EFI/efiboot.img -no-emul-boot \
 	    -append_partition 2 0xef "$scratch/efiboot.img" \
-	    -output "$top/joyent-debian_live-$release.iso" \
+	    -output "$top/triton-debian_live-$release.iso" \
 	    -graft-points "$image" /boot/grub/bios.img="$scratch/bios.img" \
 	    /EFI/efiboot.img="$scratch/efiboot.img"
 
-	    ln -f -s "${top}/joyent-debian_live-$release.iso" "$top/../joyent-debian_live-latest.iso"
+	    ln -f -s "${top}/triton-debian_live-$release.iso" "$top/../triton-debian_live-latest.iso"
 }
 
 # Creates a USB disk that should be bootable with BIOS or UEFI. The partition
@@ -832,7 +1014,7 @@ function create_usb {
 	local image_mnt=$scratch/mnt/image
 	local total_sec=$(( image_start + image_sec ))
 	local disk_mb=$(( total_sec / 2 / 1024 + 1 ))
-	local disk_file=$scratch/joyent-debian_live-$release.usb
+	local disk_file=$scratch/triton-debian_live-$release.usb
 
 	truncate -s "$disk_mb"M "$disk_file"
 
@@ -906,10 +1088,28 @@ function create_usb {
 	umount "$image_mnt"
 	umount "$esp_mnt"
 
-	rm -f "$top/joyent-debian_live-$release.usb.gz"
-	pigz -c "$disk_file" > "$top/joyent-debian_live-$release.usb.gz"
-	ln -f -s "${top}/joyent-debian_live-$release.usb.gz" "$top/../joyent-debian_live-latest.usb.gz"
+	rm -f "$top/triton-debian_live-$release.usb.gz"
+	pigz -c "$disk_file" > "$top/triton-debian_live-$release.usb.gz"
+	ln -f -s "${top}/triton-debian_live-$release.usb.gz" \
+	    "$top/../triton-debian_live-latest.usb.gz"
 
+}
+
+function finished {
+	echo "Finished building release: $release"
+
+	printf "Debian version: ${debver} "
+	chroot "$root" cat /etc/debian_version
+
+	printf "Kernel version: "
+	chroot "$root" uname -vr
+
+	echo "Files:"
+	for f in "$top/platform-$release.tgz" \
+	    "$top/triton-debian_live-$release.iso" \
+	    "$top/triton-debian_live-$release.usb.gz"; do
+		echo "  - $f ($(stat -c '%s' "$f" | numfmt --to=iec))"
+	done
 }
 
 function run {
@@ -983,6 +1183,8 @@ all_steps=(
     install_temporary_packages
     build_zfs
     install_lxd
+    build_python2
+    install_nodejs
     install_usr_triton
     install_usr_triton_helper_scripts
     install_usr_triton_ur_agent
@@ -991,22 +1193,35 @@ all_steps=(
     install_usr_triton_net_agent
     install_usr_triton_vm_agent
     install_usr_triton_imgadm
+    remove_python2
     install_proto
     remove_temporary_packages
     postinstall
-    prepare_archive_bits
-    create_tgz
-    create_iso
-    create_usb
 )
+
+# The following steps assume Grub and/or x86
+if [[ "$arch" == "amd64" ]]; then
+	all_steps+=(
+		prepare_archive_bits
+		create_tgz
+		create_iso
+		create_usb
+		finished
+	)
+fi
+
 dataset=
+aptcache=
+npmcache=
 install_missing=false
 
-while getopts d:hmr:x opt; do
+while getopts d:hmr:xa:n: opt; do
 	case $opt in
+	a)	aptcache=$OPTARG ;;
 	d)	dataset=$OPTARG ;;
 	h)	usage; exit 0 ;;
 	m)	install_missing=true ;;
+	n)	npmcache=$OPTARG ;;
 	r)	release=$OPTARG ;;
 	x)	set -x ;;
 	*)	fail_usage ;;
@@ -1071,30 +1286,29 @@ if [[ -z $dataset ]]; then
 	exit 1
 fi
 
+# Debootstrap packages, external tarballs, etc, speeds up subsequent builds
+cache=$(zfs list -Ho mountpoint "$dataset")/cache
+distfiles="$cache/distfiles"
+buildcache="$cache/build/${kernel_version}-${arch}-${machine}"
+
 dataset=$dataset/$release
 
 if ! zfs list -Ho name "$dataset" >/dev/null 2>&1; then
 	zfs create -p "$dataset"
 fi
+
 top=$(zfs list -Ho mountpoint "$dataset")
 root=$top/chroot
 image=$top/image
 scratch=$top/scratch
-mkdir -p "$scratch"
-repo=$(git rev-parse --show-toplevel)
 
-motd_alt=$'
-   __        .                   .
- _|  |_      | .-. .  . .-. :--. |-
-|_    _|     ;|   ||  |(.-\' |  | |
-  |__|   `--\'  `-\' `;-| `-\' \'  \' `-\'
-                   /  ;  Platform ('"$name"' '"$release"$')
-                   `-\'   '"$docurl"'
-'
+mkdir -p "$scratch" "$cache" "$distfiles" "$buildcache"
+
+repo=$(git rev-parse --show-toplevel)
 
 motd=$'
             *--+--*--*
-           /| /| /| /|    J O Y E N T
+           /| /| /| /|
           / |/ |/ |/ |    #####  ####   #  #####  ###   #   # TM
          +--*--+--*--*      #    #   #  #    #   #   #  ##  #
          | /| /| /| /|      #    ####   #    #   #   #  # # #
@@ -1106,8 +1320,6 @@ motd=$'
 
 '
 
-: "$motd_alt"
-
 commit=$(cd "$(dirname "$0")" && git rev-parse HEAD)
 product="
 Name: Triton Linux Platform Image
@@ -1116,6 +1328,19 @@ Documentation: $docurl
 Description: $name with ZFS $zfs_ver
 Commit: $docurl/commit/$commit
 "
+
+# If using a an apt cache such as apt-cache-ng
+if [[ -n "$aptcache" ]]; then
+	mkdir -p "$root/etc/apt/apt.conf.d"
+	echo "Acquire::http::proxy \"$aptcache\";" > \
+	    "$root/etc/apt/apt.conf.d/02aptcache"
+fi
+
+# If using an NPM cache such as verdaccio
+if [[ -n "$npmcache" ]]; then
+	mkdir -p "$root/root"
+	echo "registry=$npmcache" > "$root/root/.npmrc"
+fi
 
 firststep="yes"
 
